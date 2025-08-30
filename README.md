@@ -15,14 +15,12 @@ Highlights
 - AWS CLI v2 authenticated to an AWS account with permissions for VPC, EC2, EFS, IAM, S3, Route53, ACM, SSM
 - A public SSH key to access the instances (set `public_key` in tfvars)
 - Optional: Docker locally to validate the rendered compose file (`docker compose config`)
-- Optional: checkov for IaC scanning
 
 Links
 - Terraform: https://developer.hashicorp.com/terraform
 - AWS CLI: https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-welcome.html
 - SFTPGo: https://github.com/drakkan/sftpgo
 - OpenVPN: https://github.com/OpenVPN/openvpn
-- checkov: https://www.checkov.io/
 
 ## Project structure
 - Root Terraform and common variables: `*.tf`
