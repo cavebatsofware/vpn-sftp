@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Create an SFTPGo user backed by S3 via the SFTPGo REST API.
+# Create an SFTPGo user on the local filesystem via the SFTPGo REST API.
 #
 # What this does
-# - Reads connection and storage config from terraform outputs (IP, region, bucket)
+# - Reads connection config from terraform outputs (IP, region)
 # - Fetches the SFTPGo admin password from AWS SSM Parameter Store
 # - Logs into SFTPGo to obtain a JWT
-# - Creates a user with an S3-backed filesystem (bucket + optional key prefix)
+# - Creates a user with a local (S3 backed) filesystem home at /data/{username} (this is because the container s3 is mounted under /data)
 #
 # Requirements
 # - AWS CLI configured with permissions for SSM:GetParameter (with decryption)
@@ -15,7 +15,7 @@ set -euo pipefail
 # - SFTPGo admin API available on the server (port 8080, accessible from your host/VPN)
 usage() {
   cat <<USAGE
-Usage: $0 [-e env] [-u username] [-k key_prefix] [-p password] [-h]
+Usage: $0 [-e env] [-u username] [-p password] [-O otp] [-h]
 If flags are omitted, you'll be prompted interactively.
 USAGE
 }
@@ -26,7 +26,7 @@ USERNAME="${USERNAME:-}"
 PASSWORD="${PASSWORD:-}"
 OTP="${OTP:-}"
 
-while getopts ":e:u:k:p:O:h" opt; do
+while getopts ":e:u:p:O:h" opt; do
   case $opt in
     e) ENVIRONMENT="$OPTARG";;
     u) USERNAME="$OPTARG";;
@@ -46,11 +46,10 @@ TF_OUT() { terraform output -raw "$1" 2>/dev/null || true; }
 
 SFTP_IP=${SFTP_IP:-$(TF_OUT sftp_private_ip)}
 AWS_REGION=${AWS_REGION:-$(TF_OUT region)}
-BUCKET=${BUCKET:-$(TF_OUT s3_bucket_name)}
 ADMIN_SSM_PATH=${ADMIN_SSM_PATH:-"/$(TF_OUT project_name || echo $PROJECT_NAME)/${ENVIRONMENT}/sftpgo/admin-password"}
 
-if [[ -z "${SFTP_IP}" || -z "${AWS_REGION}" || -z "${BUCKET}" ]]; then
-  echo "Missing SFTP_IP/AWS_REGION/BUCKET. Ensure terraform outputs are available or set env vars." >&2
+if [[ -z "${SFTP_IP}" || -z "${AWS_REGION}" ]]; then
+  echo "Missing SFTP_IP/AWS_REGION. Ensure terraform outputs are available or set env vars." >&2
   exit 1
 fi
 
@@ -131,18 +130,17 @@ if [[ -z "${TOKEN}" || "${TOKEN}" == "null" ]]; then
   exit 1
 fi
 
-# Build and send the user creation request with an S3-backed filesystem
-echo "Creating user '${USERNAME}' with S3 bucket '${BUCKET}'"
+# Build and send the user creation request with local filesystem
+echo "Creating user '${USERNAME}' with home '/data/${USERNAME}'"
 PAYLOAD=$(jq -n \
   --arg u "$USERNAME" \
   --arg p "$PASSWORD" \
-  --arg b "$BUCKET" \
   --arg r "$AWS_REGION" \
   '{
     username: $u,
     status: 1,
     password: $p,
-    home_dir: "/",
+    home_dir: ("/data/" + $u),
     permissions: { "/": ["*"] },
     filesystem: {
       provider: 0
