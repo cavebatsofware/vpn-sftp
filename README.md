@@ -120,3 +120,23 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for workflow and best practices.
 ## License
 Choose MIT or GPLv3 for your fork/use.
 - Include `LICENSE-MIT` or `LICENSE-GPLv3` in your published repo (or rename your choice to `LICENSE`).
+
+## AWS pricing resources
+- EC2 On‑Demand pricing: https://aws.amazon.com/ec2/pricing/on-demand/
+- EC2 Graviton (t4g.*) pricing: https://aws.amazon.com/ec2/graviton/pricing/
+- S3 pricing: https://aws.amazon.com/s3/pricing/
+- S3 requests and data transfer: https://aws.amazon.com/s3/pricing/#Request_and_data_transfer_pricing
+- EFS pricing: https://aws.amazon.com/efs/pricing/
+- Data transfer pricing: https://aws.amazon.com/ec2/pricing/on-demand/#Data_Transfer
+
+Notes
+- The ~$15/month estimate assumes two t4g.micro instances in a low‑cost region and excludes S3/EFS storage and egress.
+- S3 costs include storage per GB‑month, requests (PUT/GET), and data transfer.
+- EFS costs include storage per GB‑month; provisioned throughput (if enabled) is extra. This is a very low volume cost for this service as the space and access requirements are very low for these files.
+- CloudWatch logging/metrics and Elastic IPs can add small additional charges.
+
+## Why run your own VPN?
+- Privacy and control: traffic terminates on infrastructure you manage—not a third-party provider.
+- Security: tight security groups, audited IAM, and known images; no shared multi-tenant VPN surface.
+- Cost and scale: about $15 USD/month at time of writing for two t4g.micro instances (region-dependent), excluding S3 storage and transfer. Connections are effectively unlimited until the instance tops out.
+- Flexibility: full control over authentication, routing, and service composition (SFTPGo, OpenVPN, monitoring).
