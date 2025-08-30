@@ -1,10 +1,10 @@
-# vpn-server
+# openvpn-sftp
 
-Production-ready Terraform to deploy an SFTP service (SFTPGo) and an OpenVPN Community server on AWS with hardened networking, logging, and persistent storage.
+Production-ready Terraform to deploy an SFTP service (SFTPGo) behind an OpenVPN Community server on AWS with hardened networking, logging, and persistent storage.
 
 Highlights
 - Multi-environment (dev/staging/prod) via workspaces and per-env tfvars
-- SFTPGo with EFS-backed state and S3-backed data via s3fs mount
+- SFTPGo with EFS-backed state and S3-backed data via s3fs mount network protected by OpenVPN
 - OpenVPN Community on Debian ARM64 (t4g.*), AES-256-GCM, easy client export
 - Optional ALB + ACM for SFTPGo Web UI; Route 53 DNS wiring (wip, coming)
 - CloudWatch metrics/alerts; node exporter
