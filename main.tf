@@ -101,6 +101,16 @@ module "dns" {
   openvpn_ip          = module.ec2.openvpn_effective_ip
 }
 
+# Private hosted zone for internal SFTPGo UI name -> private IP
+module "dns_private" {
+  count                = var.domain_name == "" ? 0 : 1
+  source               = "./modules/dns-private"
+  domain_name          = var.domain_name
+  vpc_id               = module.vpc.vpc_id
+  sftp_ui_subdomain    = var.sftp_ui_subdomain
+  sftp_private_ip      = module.ec2.sftp_private_ip
+}
+
 # Monitoring
 module "monitoring" {
   source              = "./modules/monitoring"

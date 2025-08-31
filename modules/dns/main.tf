@@ -21,7 +21,7 @@ locals {
 
 resource "aws_route53_record" "sftp" {
   zone_id = local.zone_id
-  name    = "${var.sftp_subdomain}.${var.domain_name}"
+  name    = "${var.sftp_subdomain}.${var.domain_name}."
   type    = "A"
   ttl     = var.ttl
   records = [var.sftp_ip]
@@ -29,7 +29,7 @@ resource "aws_route53_record" "sftp" {
 
 resource "aws_route53_record" "openvpn" {
   zone_id = local.zone_id
-  name    = "${var.openvpn_subdomain}.${var.domain_name}"
+  name    = "${var.openvpn_subdomain}.${var.domain_name}."
   type    = "A"
   ttl     = var.ttl
   records = [var.openvpn_ip]

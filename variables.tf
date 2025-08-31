@@ -105,3 +105,8 @@ variable "sftp_ui_subdomain" {
     default = "sftp-ui"
 }
 
+# Private DNS (Route 53 private hosted zone) for internal-only UI name
+# The module will create a private zone for `domain_name` and map
+# `<sftp_ui_subdomain>.<domain_name>` to the SFTP instance private IP.
+# It is created automatically when domain_name is set.
+

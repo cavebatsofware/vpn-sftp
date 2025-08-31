@@ -23,5 +23,5 @@ variable "openvpn_ip" {
 }
 variable "ttl" {
     type = number
-    default = 60
+    default = 900
 }
