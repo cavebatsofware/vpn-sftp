@@ -33,7 +33,7 @@ services:
       - SFTPGO_WEBDAVD__BINDINGS__0__ADDRESS=0.0.0.0
       - SFTPGO_WEBDAVD__BINDINGS__0__PORT=8081
       - AWS_DEFAULT_REGION=${aws_region}
-      # Default new users to local storage under /data (s3fs bind mount)
+      # Default users to local storage under /data (s3fs bind mount)
       - SFTPGO_DEFAULTS__USER__FS_PROVIDER=0
       - SFTPGO_DEFAULTS__USER__HOME_DIR=/data
     volumes:
@@ -45,10 +45,36 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "nc -z localhost 2022"]
-      interval: 30s
+      interval: 60s
       timeout: 10s
       retries: 5
       start_period: 30s
+
+  wireguard:
+    image: lscr.io/linuxserver/wireguard:latest
+    container_name: wireguard
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
+      - SERVERURL=${vpn_servername}
+      - SERVERPORT=${wireguard_port}
+      - PEERS=${wireguard_peers}
+      - PEERDNS=${dns_servers}
+      - ALLOWEDIPS=0.0.0.0/0
+      - MTU=1400
+      - POSTUP=sysctl -w net.ipv4.ip_forward=1; iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT; iptables -t nat -A POSTROUTING -j MASQUERADE
+      - POSTDOWN=iptables -D FORWARD -i %i -j ACCEPT || true; iptables -D FORWARD -o %i -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT || true; iptables -t nat -D POSTROUTING -j MASQUERADE || true
+    volumes:
+      - ${efs_mount_path}/wireguard:/config
+    ports:
+      - "${wireguard_port}:${wireguard_port}/udp"
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    restart: unless-stopped
 
   monitoring:
     image: prom/node-exporter:latest

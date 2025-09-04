@@ -8,7 +8,7 @@ resource "aws_route53_zone" "this" {
 }
 
 data "aws_route53_zone" "this" {
-  count = local.use_existing && var.zone_id == "" ? 1 : 0
+  count        = local.use_existing && var.zone_id == "" ? 1 : 0
   name         = "${var.domain_name}."
   private_zone = false
 }
@@ -27,12 +27,12 @@ resource "aws_route53_record" "sftp" {
   records = [var.sftp_ip]
 }
 
-resource "aws_route53_record" "openvpn" {
+resource "aws_route53_record" "vpn" {
   zone_id = local.zone_id
-  name    = "${var.openvpn_subdomain}.${var.domain_name}."
+  name    = "${var.vpn_subdomain}.${var.domain_name}."
   type    = "A"
   ttl     = var.ttl
-  records = [var.openvpn_ip]
+  records = [var.vpn_ip]
 }
 
 output "zone_id" {

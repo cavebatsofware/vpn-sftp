@@ -17,20 +17,21 @@ resource "aws_security_group" "sftp" {
     protocol    = "tcp"
     cidr_blocks = var.admin_access_cidrs
   }
+  # Web UI and WebDAV can be restricted to admin ranges or left closed unless ALB is used.
+  # Default: allow only from admin_access_cidrs
   ingress {
     description = "SFTPGo Web UI"
     from_port   = 8080
     to_port     = 8080
     protocol    = "tcp"
-  # Only allow from the OpenVPN instance (packets from VPN clients are SNATed to this ENI)
-  security_groups = [aws_security_group.openvpn.id]
+    security_groups = [aws_security_group.vpn.id]
   }
   ingress {
     description = "SFTPGo WebDAV"
     from_port   = 8081
     to_port     = 8081
     protocol    = "tcp"
-  security_groups = [aws_security_group.openvpn.id]
+    security_groups = [aws_security_group.vpn.id]
   }
   egress {
     from_port   = 0
@@ -41,31 +42,18 @@ resource "aws_security_group" "sftp" {
   tags = { Name = "${var.project_name}-${var.environment}-sftp-sg", Service = "sftp" }
 }
 
-resource "aws_security_group" "openvpn" {
-  name        = "${var.project_name}-${var.environment}-openvpn"
-  description = "Security group for OpenVPN server"
+resource "aws_security_group" "vpn" {
+  name        = "${var.project_name}-${var.environment}-vpn"
+  description = "Security group for VPN (WireGuard) server"
   vpc_id      = var.vpc_id
 
+  # WireGuard UDP
   ingress {
-    description = "OpenVPN UDP"
-    from_port   = 1194
-    to_port     = 1194
+    description = "WireGuard UDP"
+    from_port   = var.wireguard_port
+    to_port     = var.wireguard_port
     protocol    = "udp"
     cidr_blocks = ["0.0.0.0/0"]
-  }
-  ingress {
-    description = "OpenVPN TCP"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  ingress {
-    description = "OpenVPN Admin"
-    from_port   = 943
-    to_port     = 943
-    protocol    = "tcp"
-    cidr_blocks = var.admin_access_cidrs
   }
   ingress {
     description = "SSH"
@@ -80,8 +68,8 @@ resource "aws_security_group" "openvpn" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-  tags = { Name = "${var.project_name}-${var.environment}-openvpn-sg", Service = "openvpn" }
+  tags = { Name = "${var.project_name}-${var.environment}-vpn-sg", Service = "vpn" }
 }
 
 output "sftp_sg_id" { value = aws_security_group.sftp.id }
-output "openvpn_sg_id" { value = aws_security_group.openvpn.id }
+output "vpn_sg_id" { value = aws_security_group.vpn.id }

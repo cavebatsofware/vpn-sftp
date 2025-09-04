@@ -5,6 +5,6 @@ variable "vpc_id" { type = string }
 variable "subnet_ids" { type = list(string) }
 variable "client_sg_ids" { type = list(string) }
 variable "kms_key_arn" {
-	type    = string
-	default = null
+  type    = string
+  default = null
 }

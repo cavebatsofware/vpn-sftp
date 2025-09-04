@@ -5,6 +5,6 @@ variable "public_subnet_ids" { type = list(string) }
 variable "certificate_arn" { type = string }
 variable "target_instance_id" { type = string }
 variable "target_port" {
-    type = number
-    default = 8080
+  type    = number
+  default = 8080
 }

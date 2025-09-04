@@ -5,8 +5,6 @@
 *.tfstate.*
 crash.log
 crash.*.log
-terraform.tfvars
-terraform.tfvars.json
 override.tf
 override.tf.json
 *_override.tf
@@ -29,8 +27,9 @@ environments/
 .vscode/
 .idea/
 
-# Generated certs/keys/ovpn
-*.ovpn
+# Generated certs/keys/configs
+*.conf
+*.png
 *.crt
 *.key
 *.pem
@@ -41,5 +40,3 @@ environments/
 # Logs
 *.log
 logs/
-
-

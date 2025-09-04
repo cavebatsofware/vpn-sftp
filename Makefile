@@ -7,6 +7,9 @@ TF_VAR_FILE = environments/$(ENV)/terraform.tfvars
 PLAN_FILE = plans/$(ENV).tfplan
 BACKEND ?= true
 
+HOST ?=
+EFS_PATH ?= /mnt/efs/bin
+
 help:
 	@echo "Targets: init plan apply destroy drift-check security-scan clean"
 
@@ -33,3 +36,5 @@ apply:
 
 clean:
 	rm -rf .terraform/ plans/ .terraform.lock.hcl
+
+# (wg-clientgen retired) No WireGuard build/deploy targets needed

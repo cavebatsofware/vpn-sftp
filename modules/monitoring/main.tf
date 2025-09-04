@@ -20,13 +20,13 @@ resource "aws_cloudwatch_metric_alarm" "sftp_cpu_high" {
   period              = 300
   statistic           = "Average"
   threshold           = 80
-  dimensions = { InstanceId = var.sftp_instance_id }
-  alarm_actions = [aws_sns_topic.alerts.arn]
-  ok_actions    = [aws_sns_topic.alerts.arn]
+  dimensions          = { InstanceId = var.sftp_instance_id }
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+  ok_actions          = [aws_sns_topic.alerts.arn]
 }
 
-resource "aws_cloudwatch_metric_alarm" "openvpn_packets_in_low" {
-  alarm_name          = "${var.project_name}-${var.environment}-openvpn-packets-in-low"
+resource "aws_cloudwatch_metric_alarm" "vpn_packets_in_low" {
+  alarm_name          = "${var.project_name}-${var.environment}-vpn-packets-in-low"
   comparison_operator = "LessThanThreshold"
   evaluation_periods  = 3
   metric_name         = "NetworkPacketsIn"
@@ -34,8 +34,8 @@ resource "aws_cloudwatch_metric_alarm" "openvpn_packets_in_low" {
   period              = 300
   statistic           = "Sum"
   threshold           = 10
-  dimensions = { InstanceId = var.openvpn_instance_id }
-  alarm_actions = [aws_sns_topic.alerts.arn]
+  dimensions          = { InstanceId = var.vpn_instance_id }
+  alarm_actions       = [aws_sns_topic.alerts.arn]
 }
 
 output "alerts_topic_arn" { value = aws_sns_topic.alerts.arn }

@@ -1,11 +1,11 @@
-# openvpn-sftp
+# vpn-sftp (WireGuard)
 
-Production-ready Terraform to deploy an SFTP service (SFTPGo) behind an OpenVPN Community server on AWS with hardened networking, logging, and persistent storage.
+Production-ready Terraform to deploy an SFTP service (SFTPGo) behind a WireGuard VPN on AWS with hardened networking, logging, and persistent storage.
 
 Highlights
 - Multi-environment (dev/staging/prod) via workspaces and per-env tfvars
-- SFTPGo with EFS-backed state and S3-backed data via s3fs mount network protected by OpenVPN
-- OpenVPN Community on Debian ARM64 (t4g.*), AES-256-GCM, easy client export
+- SFTPGo with EFS-backed state and S3-backed data via s3fs mount; access over VPN
+- WireGuard VPN on Debian ARM64 (t4g.*), simple client export
 - Optional ALB + ACM for SFTPGo Web UI; Route 53 DNS wiring (wip, coming)
 - CloudWatch metrics/alerts; node exporter
 - Clean, idempotent bootstraps using Docker Compose in user-data
@@ -20,14 +20,14 @@ Links
 - Terraform: https://developer.hashicorp.com/terraform
 - AWS CLI: https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-welcome.html
 - SFTPGo: https://github.com/drakkan/sftpgo
-- OpenVPN: https://github.com/OpenVPN/openvpn
+- WireGuard: https://www.wireguard.com/
 
 ## Project structure
 - Root Terraform and common variables: `*.tf`
 - Environments: `environments/{dev,staging,prod}` with `backend.tfvars` and `terraform.tfvars`
 - Modules: `modules/*` (vpc, security-groups, iam, s3, efs, ec2, dns, monitoring, alb)
 - User-data (instance bootstraps): `modules/ec2/user_data/*`
-- Docker Compose template: `docker-compose/templates/docker-compose.sftp.yml.tpl`
+- Docker Compose template (stack): `docker-compose/templates/docker-compose.stack.yml.tpl`
 - Operational scripts: `scripts/`
 
 ## Setup
@@ -48,9 +48,9 @@ What gets created
 - VPC, subnets, route tables
 - Security groups (SSH, SFTP, UI, VPN)
 - S3 bucket + KMS key (SSE-KMS)
-- EFS file system (for SFTPGo state and OpenVPN PKI)
+- EFS file system (for SFTPGo state and WireGuard config)
 - IAM role/policies and instance profile
-- EC2: SFTPGo host and OpenVPN host (Debian ARM64)
+- EC2: single host (Debian ARM64) running both SFTPGo and WireGuard via Docker Compose
 - Optional: ALB + Route53 for SFTPGo UI (WIP)
 
 ## S3 credentials for s3fs
@@ -80,9 +80,9 @@ Helper script
 Backend note: `make init` uses `environments/<env>/backend.tfvars` to configure state.
 
 ## Operational scripts
-- `scripts/openvpn-client.sh`
-  - Connects to the OpenVPN instance, runs client generation inside the server container, and retrieves the `.ovpn` file.
-  - Requires SSH access to the OpenVPN host.
+- `scripts/wireguard-client.sh`
+  - Connects to the VPN instance, creates a WireGuard peer, and prints the client config.
+  - Requires SSH access to the VPN host.
 - `scripts/sftpgo-create-user.sh`
   - Authenticates to SFTPGo’s REST API using Basic auth to obtain a token, then creates a user.
   - Reads Terraform outputs for IP/region/bucket; fetches admin password from SSM path `/<project>/<env>/sftpgo/admin-password`.
@@ -92,15 +92,15 @@ Backend note: `make init` uses `environments/<env>/backend.tfvars` to configure 
 - `scripts/health-check.sh`
   - Basic checks; customize endpoints as needed.
 
-## SFTPGo and OpenVPN specifics
+## SFTPGo and VPN specifics
 - SFTPGo
   - Data provider: SQLite at `/var/lib/sftpgo/sftpgo.db` (on EFS)
   - Defaults: new users on local filesystem under `/data` (s3fs mount)
   - Admin password: `/opt/docker-app/secrets/sftpgo_admin_password` (seeded from SSM if present)
   - UI and REST API listen on 8080 (restrict via SG or place behind ALB)
-- OpenVPN
-  - UDP 1194, AES-256-GCM enforced
-  - Easy client generation via `scripts/openvpn-client.sh`
+- WireGuard
+  - UDP ${wireguard_port} (default 51820)
+  - Easy client generation via `scripts/wireguard-client.sh`
 
 ## DNS and HTTPS (optional)
 - Set `domain_name` and either `route53_zone_id` or `create_hosted_zone = true`
@@ -137,4 +137,4 @@ Notes
 - Privacy and control: traffic terminates on infrastructure you manage—not a third-party provider.
 - Security: tight security groups, audited IAM, and known images; no shared multi-tenant VPN surface.
 - Cost and scale: about $15 USD/month at time of writing for two t4g.micro instances (region-dependent), excluding S3 storage and transfer. Connections are effectively unlimited until the instance tops out.
-- Flexibility: full control over authentication, routing, and service composition (SFTPGo, OpenVPN, monitoring).
+- Flexibility: full control over authentication, routing, and service composition (SFTPGo, WireGuard, monitoring).

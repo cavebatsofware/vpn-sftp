@@ -1,4 +1,4 @@
- resource "aws_security_group" "alb" {
+resource "aws_security_group" "alb" {
   name        = "${var.project_name}-${var.environment}-sftp-ui-alb"
   description = "Security group for SFTPGo UI ALB"
   vpc_id      = var.vpc_id

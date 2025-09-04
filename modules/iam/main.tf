@@ -1,7 +1,7 @@
 resource "aws_iam_role" "ec2_role" {
   name = "${var.project_name}-${var.environment}-ec2-role"
   assume_role_policy = jsonencode({
-    Version = "2012-10-17"
+    Version   = "2012-10-17"
     Statement = [{ Action = "sts:AssumeRole", Effect = "Allow", Principal = { Service = "ec2.amazonaws.com" } }]
   })
   tags = { Name = "${var.project_name}-${var.environment}-ec2-role" }
@@ -38,7 +38,7 @@ resource "aws_iam_role_policy" "s3_access" {
         ],
         Resource = "${var.s3_bucket_arn}/*"
       },
-      { Effect = "Allow", Action = ["kms:Encrypt","kms:Decrypt","kms:ReEncrypt*","kms:GenerateDataKey*","kms:DescribeKey"], Resource = var.kms_key_arn }
+      { Effect = "Allow", Action = ["kms:Encrypt", "kms:Decrypt", "kms:ReEncrypt*", "kms:GenerateDataKey*", "kms:DescribeKey"], Resource = var.kms_key_arn }
     ]
   })
 }
@@ -67,7 +67,7 @@ resource "aws_iam_role_policy" "ssm_kms_decrypt" {
     Statement = [
       {
         Effect   = "Allow",
-      Action   = ["kms:Decrypt"],
+        Action   = ["kms:Decrypt"],
         Resource = var.parameter_store_kms_key_arn
       }
     ]

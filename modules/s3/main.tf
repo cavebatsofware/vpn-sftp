@@ -6,7 +6,7 @@ resource "random_string" "bucket_suffix" {
 
 resource "aws_s3_bucket" "sftp_data" {
   bucket = "${var.project_name}-${var.environment}-sftp-data-${random_string.bucket_suffix.result}"
-  tags = { Name = "${var.project_name}-${var.environment}-sftp-data", Purpose = "sftp-backend-storage", Environment = var.environment }
+  tags   = { Name = "${var.project_name}-${var.environment}-sftp-data", Purpose = "sftp-backend-storage", Environment = var.environment }
 }
 
 resource "aws_s3_bucket_versioning" "sftp_data" {
@@ -39,10 +39,10 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "sftp_data" {
 }
 
 resource "aws_s3_bucket_public_access_block" "sftp_data" {
-  bucket = aws_s3_bucket.sftp_data.id
-  block_public_acls = true
-  block_public_policy = true
-  ignore_public_acls = true
+  bucket                  = aws_s3_bucket.sftp_data.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
   restrict_public_buckets = true
 }
 
