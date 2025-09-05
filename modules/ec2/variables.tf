@@ -29,18 +29,6 @@ variable "vpc_dns_ip" {
   type = string
 }
 
-# Optional: seed s3fs credentials
-variable "s3fs_passwd" {
-  description = "Content for ~/.passwd-s3fs in the form ACCESS_KEY_ID:SECRET_ACCESS_KEY[:SESSION_TOKEN]"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-variable "s3fs_ssm_parameter_name" {
-  description = "If set, fetch this SSM SecureString parameter for s3fs (format ACCESS_KEY_ID:SECRET_ACCESS_KEY[:SESSION_TOKEN])"
-  type        = string
-  default     = ""
-}
 variable "aws_profile" {
   description = "AWS CLI profile name to use when relying on ~/.aws/credentials"
   type        = string

@@ -40,6 +40,13 @@ variable "instance_type" {
   default = "t4g.micro"
 }
 
+# Optional: override the default ARM64 AMI (e.g., specific AL2023 AMI ID)
+variable "arm64_ami_id_override" {
+  type        = string
+  default     = ""
+  description = "If set, use this AMI ID for the EC2 instance instead of the data-sourced AL2023 AMI. AMI IDs are region-specific."
+}
+
 # Compose template inputs
 variable "sftp_port" {
   type    = number
@@ -67,24 +74,11 @@ variable "dns_servers" {
   default     = "8.8.8.8,8.8.4.4"
 }
 
-# s3fs credentials seeding
-variable "s3fs_passwd" {
-  description = "Content for ~/.passwd-s3fs in the form ACCESS_KEY_ID:SECRET_ACCESS_KEY[:SESSION_TOKEN]"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-variable "s3fs_ssm_parameter_name" {
-  description = "Name of SSM (SecureString) parameter containing ACCESS_KEY_ID:SECRET_ACCESS_KEY[:SESSION_TOKEN] for s3fs"
-  type        = string
-  default     = ""
-}
 variable "aws_profile" {
   description = "AWS CLI profile to use when reading ~/.aws/credentials on the instance"
   type        = string
   default     = "default"
 }
-
 
 # DNS
 variable "domain_name" {

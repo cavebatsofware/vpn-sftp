@@ -10,7 +10,7 @@ usage(){ echo "Usage: $0 [-e env] [-n name] [-H host] [-u ssh_user] [-q|--qr] [-
 ENVIRONMENT="${ENVIRONMENT:-}"
 CLIENT_NAME="${NAME:-${CLIENT:-}}"
 HOST_OVERRIDE="${HOST:-}"
-SSH_USER="${SSH_USER:-admin}"
+SSH_USER="${SSH_USER:-ec2-user}"
 QR=false
 PRINT=false
 COPY_PATH=""

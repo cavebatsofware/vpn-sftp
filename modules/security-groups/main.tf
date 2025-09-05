@@ -20,17 +20,17 @@ resource "aws_security_group" "sftp" {
   # Web UI and WebDAV can be restricted to admin ranges or left closed unless ALB is used.
   # Default: allow only from admin_access_cidrs
   ingress {
-    description = "SFTPGo Web UI"
-    from_port   = 8080
-    to_port     = 8080
-    protocol    = "tcp"
+    description     = "SFTPGo Web UI"
+    from_port       = 8080
+    to_port         = 8080
+    protocol        = "tcp"
     security_groups = [aws_security_group.vpn.id]
   }
   ingress {
-    description = "SFTPGo WebDAV"
-    from_port   = 8081
-    to_port     = 8081
-    protocol    = "tcp"
+    description     = "SFTPGo WebDAV"
+    from_port       = 8081
+    to_port         = 8081
+    protocol        = "tcp"
     security_groups = [aws_security_group.vpn.id]
   }
   egress {

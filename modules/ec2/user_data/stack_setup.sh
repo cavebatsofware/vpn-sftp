@@ -3,7 +3,7 @@ set -euo pipefail
 
 # EC2 user-data to provision a single host running both SFTPGo and WireGuard via Docker Compose.
 # - Installs Docker and compose plugin
-# - Mounts EFS at ${efs_mount_path} and S3 bucket via s3fs at /mnt/s3
+# - Mounts EFS at ${efs_mount_path} and S3 bucket via Mountpoint for Amazon S3 (mount-s3) at /mnt/s3
 # - Creates SFTPGo admin password secret (from SSM if available, else random)
 # - Renders docker-compose.yml from provided template and starts the stack
 
@@ -13,53 +13,41 @@ PROJECT_NAME=${project_name}
 EFS_FS_ID=${efs_file_system_id}
 EFS_MOUNT=${efs_mount_path}
 S3_BUCKET=${s3_bucket_name}
-S3FS_PASSWD_CONTENT=${s3fs_passwd}
-S3FS_SSM_PARAM=${s3fs_ssm_parameter}
 DOCKER_COMPOSE_YML=$(cat <<'YAML'
 ${docker_compose_yml}
 YAML
 )
 
-export DEBIAN_FRONTEND=noninteractive
-apt-get update
-apt-get install -y curl wget gnupg2 ca-certificates awscli jq nfs-common
-apt-get install -y s3fs
-sed -i 's/^#\?user_allow_other/user_allow_other/' /etc/fuse.conf || echo user_allow_other >> /etc/fuse.conf
+export DNF_YUM=1
+dnf -y update || true
+dnf -y install docker || true
+dnf -y swap gnupg2-minimal gnupg2-full || true
 
-if ! command -v docker >/dev/null 2>&1; then
-  curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
-  sh /tmp/get-docker.sh
+
+# Ensure any old/incorrect compose plugin path is not shadowing
+rm -f /usr/lib/docker/cli-plugins/docker-compose || true
+
+# Start Docker using systemctl (preferred), with fallbacks
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl enable docker || true
+  systemctl start docker || true
+  if ! systemctl is-active --quiet docker; then
+    service docker start || true
+  fi
+else
+  service docker start || true
 fi
 
-if ! docker compose version >/dev/null 2>&1; then
-  mkdir -p /usr/lib/docker/cli-plugins
-  curl -L "https://github.com/docker/compose/releases/download/v2.39.1/docker-compose-linux-arm64" -o /usr/lib/docker/cli-plugins/docker-compose
-  chmod +x /usr/lib/docker/cli-plugins/docker-compose
-fi
-
-systemctl enable docker
-systemctl start docker
+# Wait for Docker daemon readiness
+for i in {1..20}; do
+  docker info >/dev/null 2>&1 && break || sleep 3
+done
 
 groupadd -f docker || true
-for U in admin ubuntu debian ec2-user; do
-  id "$U" >/dev/null 2>&1 && usermod -aG docker "$U" || true
-done
+id "ec2-user" >/dev/null 2>&1 && usermod -aG docker "ec2-user" || true
 
 mkdir -p /opt/docker-app/{config,secrets,logs}
 cd /opt/docker-app
-
-# Optional: seed /etc/passwd-s3fs from SSM or inline var
-if [[ -n "$S3FS_SSM_PARAM" ]]; then
-  if VAL=$(aws ssm get-parameter --name "$S3FS_SSM_PARAM" --with-decryption --query 'Parameter.Value' --output text --region "$AWS_REGION" 2>/dev/null); then
-    echo "$VAL" > /etc/passwd-s3fs
-    chmod 600 /etc/passwd-s3fs
-    chown root:root /etc/passwd-s3fs || true
-  fi
-elif [[ -n "$S3FS_PASSWD_CONTENT" ]]; then
-  echo "$S3FS_PASSWD_CONTENT" > /etc/passwd-s3fs
-  chmod 600 /etc/passwd-s3fs
-  chown root:root /etc/passwd-s3fs || true
-fi
 
 # Mount EFS for persistence
 mkdir -p "$EFS_MOUNT"
@@ -73,27 +61,64 @@ mkdir -p "$EFS_MOUNT/sftpgo" "$EFS_MOUNT/wireguard"
 chown -R 1000:1000 "$EFS_MOUNT/sftpgo" "$EFS_MOUNT/wireguard" || true
 chmod 750 "$EFS_MOUNT/sftpgo" "$EFS_MOUNT/wireguard" || true
 
-# Mount S3 bucket via s3fs at /mnt/s3 (read/write)
+# Mount S3 bucket at /mnt/s3 using Mountpoint for Amazon S3 via /etc/fstab
 mkdir -p /mnt/s3
-S3FS_OPTS="_netdev,allow_other,uid=1000,gid=1000,umask=027,endpoint=$AWS_REGION"
-if [[ -f "/etc/passwd-s3fs" ]]; then
-  chmod 600 /etc/passwd-s3fs || true
-  S3FS_OPTS="$S3FS_OPTS,passwd_file=/etc/passwd-s3fs"
-else
-  S3FS_OPTS="$S3FS_OPTS,iam_role=auto"
-fi
-if ! grep -q "/mnt/s3" /etc/fstab; then
-  echo "$S3_BUCKET /mnt/s3 fuse.s3fs $S3FS_OPTS 0 0" >> /etc/fstab
-fi
-mount -a || true
 
-# SFTPGo admin password: get from SSM if exists; else generate one
-if aws ssm get-parameter --name "/$PROJECT_NAME/$ENVIRONMENT/sftpgo/admin-password" --with-decryption --query 'Parameter.Value' --output text --region $AWS_REGION >/dev/null 2>&1; then
-  aws ssm get-parameter --name "/$PROJECT_NAME/$ENVIRONMENT/sftpgo/admin-password" --with-decryption --query 'Parameter.Value' --output text --region $AWS_REGION > /opt/docker-app/secrets/sftpgo_admin_password || true
+# Ensure FUSE allows 'allow_other' (create if missing)
+if [ -f /etc/fuse.conf ]; then
+  sed -i 's/^#\?user_allow_other/user_allow_other/' /etc/fuse.conf || true
 else
-  openssl rand -base64 24 > /opt/docker-app/secrets/sftpgo_admin_password
+  echo user_allow_other > /etc/fuse.conf
+  chmod 644 /etc/fuse.conf || true
 fi
-chmod 600 /opt/docker-app/secrets/* || true
+
+# Install mount-s3 (Mountpoint for Amazon S3) if missing
+if ! command -v mount-s3 >/dev/null 2>&1; then
+  RPM_URL="https://s3.amazonaws.com/mountpoint-s3-release/latest/arm64/mount-s3.rpm"
+  SIG_URL="https://s3.amazonaws.com/mountpoint-s3-release/latest/arm64/mount-s3.rpm.sig"
+  TMP_DIR="/tmp/mountpoint-s3"
+  mkdir -p "$TMP_DIR"
+  (
+    set -e
+    cd "$TMP_DIR"
+    wget -q -O KEYS https://s3.amazonaws.com/mountpoint-s3-release/public_keys/KEYS || true
+    if [ -s KEYS ]; then
+      gpg --import KEYS || true
+      EXPECTED_FPR="673FE4061506BB469A0EF857BE397A52B086DA5A"
+      ACTUAL_FPR=$(gpg --fingerprint mountpoint-s3@amazon.com 2>/dev/null | sed -n 's/ *Key fingerprint = //p' | tr -d ' ' | head -n1)
+      if [ -n "$ACTUAL_FPR" ] && [ "$ACTUAL_FPR" != "$EXPECTED_FPR" ]; then
+        echo "WARNING: mountpoint-s3 GPG fingerprint mismatch: $ACTUAL_FPR" >&2
+      fi
+    fi
+    wget -q -O mount-s3.rpm "$RPM_URL"
+    wget -q -O mount-s3.rpm.sig "$SIG_URL"
+    if [ ! -s KEYS ] || [ ! -s mount-s3.rpm.sig ]; then
+      echo "ERROR: GPG KEYS or signature file missing; cannot verify mount-s3.rpm" >&2
+      exit 1
+    fi
+    if ! gpg --verify mount-s3.rpm.sig mount-s3.rpm >/dev/null 2>&1; then
+      echo "ERROR: GPG signature verification failed for mount-s3.rpm; skipping install" >&2
+      exit 3
+    fi
+    # Install the RPM (dnf handles dependencies like fuse3-lib, if any)
+    dnf -y install ./mount-s3.rpm || rpm -Uvh --force ./mount-s3.rpm || true
+  ) || echo "WARNING: Failed to install mount-s3; S3 mount will be skipped" >&2
+fi
+
+# Configure fstab entry and mount if mount-s3 is available
+if command -v mount-s3 >/dev/null 2>&1; then
+  if ! grep -qE "^s3://\s*$${S3_BUCKET}\b" /etc/fstab; then
+    echo "s3://$${S3_BUCKET} /mnt/s3 mount-s3 _netdev,nosuid,nodev,nofail,rw,allow-other,uid=1000,gid=1000,dir_mode=0750,file_mode=0640 0 0" >> /etc/fstab
+  fi
+  mount -a || true
+else
+  echo "WARNING: mount-s3 not installed; skipping S3 mount" >&2
+fi
+
+# Tighten secret permissions only if files exist
+if compgen -G "/opt/docker-app/secrets/*" > /dev/null; then
+  chmod 600 /opt/docker-app/secrets/* || true
+fi
 
 # Enable IPv4 forwarding on host (defense in depth for WireGuard NAT)
 sysctl -w net.ipv4.ip_forward=1 || true
@@ -104,7 +129,28 @@ fi
 # Write docker-compose.yml from injected template
 echo "$DOCKER_COMPOSE_YML" > docker-compose.yml
 
-# Start the stack
-docker compose up -d
+# Ensure Docker Compose v2 plugin is available (install to /usr/libexec if needed)
+if ! docker compose version >/dev/null 2>&1; then
+  mkdir -p /usr/libexec/docker/cli-plugins
+  ARCH=$(uname -m)
+  case "$ARCH" in
+    aarch64)
+      COMPOSE_URL="https://github.com/docker/compose/releases/download/v2.39.1/docker-compose-linux-aarch64" ;;
+    *)
+      COMPOSE_URL="" ;;
+  esac
+  if [ -n "$COMPOSE_URL" ]; then
+    curl -fsSL -o /usr/libexec/docker/cli-plugins/docker-compose "$COMPOSE_URL" || \
+    wget -q -O /usr/libexec/docker/cli-plugins/docker-compose "$COMPOSE_URL" || true
+    chmod +x /usr/libexec/docker/cli-plugins/docker-compose || true
+  fi
+fi
+
+# Start the stack (only if compose plugin is available)
+if docker compose version >/dev/null 2>&1; then
+  docker compose up -d
+else
+  echo "WARNING: docker compose plugin not available; skipping stack start" >&2
+fi
 
 exit 0

@@ -60,40 +60,38 @@ locals {
   vpc_dns_ip = cidrhost(var.vpc_cidr, 2)
 
   docker_compose_yml_stack = templatefile(local.docker_compose_template_stack, {
-    s3_bucket_name   = module.s3.bucket_name
-    aws_region       = var.aws_region
-    sftp_port        = var.sftp_port
-    wireguard_port   = var.wireguard_port
-    vpn_servername   = (var.domain_name != "" ? "${var.vpn_subdomain}.${var.domain_name}" : "${var.project_name}.${var.environment}")
-    s3_mount_path    = "/mnt/s3"
-    efs_mount_path   = "/mnt/efs"
-    wireguard_peers  = var.wireguard_peers == "" ? 0 : var.wireguard_peers
-    dns_servers      = var.dns_servers
+    s3_bucket_name  = module.s3.bucket_name
+    aws_region      = var.aws_region
+    sftp_port       = var.sftp_port
+    wireguard_port  = var.wireguard_port
+    vpn_servername  = (var.domain_name != "" ? "${var.vpn_subdomain}.${var.domain_name}" : "${var.project_name}.${var.environment}")
+    s3_mount_path   = "/mnt/s3"
+    efs_mount_path  = "/mnt/efs"
+    wireguard_peers = var.wireguard_peers == "" ? 0 : var.wireguard_peers
+    dns_servers     = var.dns_servers
   })
 }
 
 # EC2
 module "ec2" {
-  source                  = "./modules/ec2"
-  project_name            = var.project_name
-  environment             = var.environment
-  aws_region              = var.aws_region
-  public_subnet_id        = module.vpc.public_subnet_ids[0]
-  sftp_security_group_id  = module.security_groups.sftp_sg_id
-  vpn_security_group_id   = module.security_groups.vpn_sg_id
-  instance_profile_name   = module.iam.instance_profile_name
-  arm64_ami_id            = data.aws_ami.debian_arm64.id
-  s3_bucket_name          = module.s3.bucket_name
-  public_key              = var.public_key
-  docker_compose_yml      = local.docker_compose_yml_stack
-  wireguard_port          = var.wireguard_port
-  vpn_servername          = (var.domain_name != "" ? "${var.vpn_subdomain}.${var.domain_name}" : "${var.project_name}.${var.environment}")
-  efs_file_system_id      = module.efs.file_system_id
-  efs_mount_path          = "/mnt/efs"
-  s3fs_passwd             = var.s3fs_passwd
-  s3fs_ssm_parameter_name = var.s3fs_ssm_parameter_name
-  aws_profile             = var.aws_profile
-  vpc_dns_ip              = local.vpc_dns_ip
+  source                 = "./modules/ec2"
+  project_name           = var.project_name
+  environment            = var.environment
+  aws_region             = var.aws_region
+  public_subnet_id       = module.vpc.public_subnet_ids[0]
+  sftp_security_group_id = module.security_groups.sftp_sg_id
+  vpn_security_group_id  = module.security_groups.vpn_sg_id
+  instance_profile_name  = module.iam.instance_profile_name
+  arm64_ami_id           = var.arm64_ami_id_override != "" ? var.arm64_ami_id_override : data.aws_ami.al2023_arm64.id
+  s3_bucket_name         = module.s3.bucket_name
+  public_key             = var.public_key
+  docker_compose_yml     = local.docker_compose_yml_stack
+  wireguard_port         = var.wireguard_port
+  vpn_servername         = (var.domain_name != "" ? "${var.vpn_subdomain}.${var.domain_name}" : "${var.project_name}.${var.environment}")
+  efs_file_system_id     = module.efs.file_system_id
+  efs_mount_path         = "/mnt/efs"
+  aws_profile            = var.aws_profile
+  vpc_dns_ip             = local.vpc_dns_ip
 }
 # DNS (optional)
 module "dns" {

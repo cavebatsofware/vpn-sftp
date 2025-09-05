@@ -1,4 +1,4 @@
-.PHONY: help init validate plan apply clean security-scan
+.PHONY: help init validate plan apply destroy clean security-scan
 .DEFAULT_GOAL := help
 
 ENV ?= dev
@@ -33,6 +33,9 @@ plan: validate security-scan
 
 apply:
 	terraform apply $(PLAN_FILE)
+
+destroy: init
+	terraform destroy -var-file=$(TF_VAR_FILE) -auto-approve
 
 clean:
 	rm -rf .terraform/ plans/ .terraform.lock.hcl

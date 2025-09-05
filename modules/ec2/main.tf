@@ -29,8 +29,6 @@ resource "aws_instance" "stack_server" {
     docker_compose_yml = var.docker_compose_yml,
     efs_file_system_id = var.efs_file_system_id,
     efs_mount_path     = var.efs_mount_path,
-    s3fs_passwd        = var.s3fs_passwd,
-    s3fs_ssm_parameter = var.s3fs_ssm_parameter_name,
     aws_profile        = var.aws_profile
   })
   tags = { Name = "${var.project_name}-${var.environment}-stack", Service = "sftp+vpn", Architecture = "arm64" }

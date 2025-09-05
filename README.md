@@ -4,8 +4,8 @@ Production-ready Terraform to deploy an SFTP service (SFTPGo) behind a WireGuard
 
 Highlights
 - Multi-environment (dev/staging/prod) via workspaces and per-env tfvars
-- SFTPGo with EFS-backed state and S3-backed data via s3fs mount; access over VPN
-- WireGuard VPN on Debian ARM64 (t4g.*), simple client export
+- SFTPGo with EFS-backed state and S3-backed data via Mountpoint for Amazon S3; access over VPN (HTTP/WEBDAV) or SSH/SFTP
+- WireGuard VPN on Amazon Linux 2023 ARM64 Gravitron (t4g.*), simple client export
 - Optional ALB + ACM for SFTPGo Web UI; Route 53 DNS wiring (wip, coming)
 - CloudWatch metrics/alerts; node exporter
 - Clean, idempotent bootstraps using Docker Compose in user-data
@@ -50,25 +50,20 @@ What gets created
 - S3 bucket + KMS key (SSE-KMS)
 - EFS file system (for SFTPGo state and WireGuard config)
 - IAM role/policies and instance profile
-- EC2: single host (Debian ARM64) running both SFTPGo and WireGuard via Docker Compose
+- EC2: single host (Amazon Linux 2023 ARM64) running both SFTPGo and WireGuard via Docker Compose
 - Optional: ALB + Route53 for SFTPGo UI (WIP)
 
-## S3 credentials for s3fs
-s3fs mounts your S3 bucket at `/mnt/s3`, which is bind-mounted as `/data` into the SFTPGo container. New users default to local FS under `/data/[username]`.
+## S3 access via Mountpoint for Amazon S3
+Mountpoint mounts your S3 bucket at `/mnt/s3`, which is bind-mounted as `/data` into the SFTPGo container. New users default to local FS under `/data/[username]`.
 
-Provide credentials one of these ways (in order of preference):
-- SSM SecureString parameter containing `ACCESS_KEY_ID:SECRET_ACCESS_KEY[:SESSION_TOKEN]`
-  - Set `s3fs_ssm_parameter_name = "/your/path"` in the env tfvars
-- Inline secret (sensitive var)
-  - Set `s3fs_passwd = "AKIA...:wJalrX...[:SESSION]"` in the env tfvars or export `TF_VAR_s3fs_passwd`
+Credentials
+- Uses the instance profile by default; no local credential files are required.
 
 On boot, user-data will:
-- Write `/etc/passwd-s3fs` (root:root, 600) if provided via SSM or inline
-- Add an fstab entry: `<bucket> /mnt/s3 fuse.s3fs _netdev,allow_other,uid=1000,gid=1000,umask=027,endpoint=<region>,passwd_file=/etc/passwd-s3fs 0 0`
-- Otherwise, use `iam_role=auto` in fstab
+- Install Mountpoint (`mount-s3`) on Amazon Linux 2023
+- Create a systemd unit that mounts `<bucket> -> /mnt/s3` with uid/gid 1000
 
-Helper script
-- `scripts/seed-s3fs-passwd.sh` can derive `ACCESS:SECRET[:SESSION]` from a local AWS profile and either print it or write to SSM for Terraform to use.
+Note: `scripts/seed-s3fs-passwd.sh` is no longer required when using Mountpoint.
 
 ## Using the Makefile
 - make init ENV=dev       # terraform init + workspace select/create
