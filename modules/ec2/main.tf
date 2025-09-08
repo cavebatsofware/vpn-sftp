@@ -21,6 +21,7 @@ resource "aws_instance" "stack_server" {
     encrypted             = true
     delete_on_termination = true
   }
+  # Need to add value for tls_servername
   user_data = templatefile("${path.module}/user_data/stack_setup.sh", {
     s3_bucket_name     = var.s3_bucket_name,
     aws_region         = var.aws_region,
@@ -29,7 +30,12 @@ resource "aws_instance" "stack_server" {
     docker_compose_yml = var.docker_compose_yml,
     efs_file_system_id = var.efs_file_system_id,
     efs_mount_path     = var.efs_mount_path,
-    aws_profile        = var.aws_profile
+    aws_profile        = var.aws_profile,
+    vpc_dns_ip         = var.vpc_dns_ip,
+    dns_servers        = var.dns_servers,
+    domain_name        = var.domain_name,
+    route53_zone_id    = var.route53_zone_id,
+    dns_tls_servername = var.dns_tls_servername,
   })
   tags = { Name = "${var.project_name}-${var.environment}-stack", Service = "sftp+vpn", Architecture = "arm64" }
 }

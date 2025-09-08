@@ -24,9 +24,30 @@ variable "efs_mount_path" {
   default = "/mnt/efs"
 }
 
-# VPC resolver IP (network address + 2), pushed to VPN clients for DNS
+# VPC resolver IP Deprecated, remove
 variable "vpc_dns_ip" {
   type = string
+}
+
+# Comma-separated upstream public DNS servers used by CoreDNS default forwarder
+variable "dns_servers" {
+  type = string
+}
+
+# Optional domain to forward internally to VPC resolver (for private hosted zone)
+variable "domain_name" {
+  type    = string
+  default = ""
+}
+
+variable "route53_zone_id" {
+  type    = string
+  default = ""
+}
+
+variable "dns_tls_servername" {
+  type    = string
+  default = ""
 }
 
 variable "aws_profile" {

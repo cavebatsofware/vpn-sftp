@@ -5,6 +5,7 @@ locals {
 resource "aws_route53_zone" "this" {
   count = var.create_hosted_zone ? 1 : 0
   name  = var.domain_name
+  comment       = "Public hosted zone for ${var.domain_name}"
 }
 
 data "aws_route53_zone" "this" {

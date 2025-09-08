@@ -31,7 +31,7 @@ module "iam" {
   environment   = var.environment
   s3_bucket_arn = module.s3.bucket_arn
   kms_key_arn   = module.s3.kms_key_arn
-  # Provide a Parameter Store KMS key ARN if you encrypt SSM parameters; null by default
+  # Provide a Parameter Store KMS key ARN if you encrypt SSM parameters
   parameter_store_kms_key_arn = null
 }
 
@@ -92,6 +92,8 @@ module "ec2" {
   efs_mount_path         = "/mnt/efs"
   aws_profile            = var.aws_profile
   vpc_dns_ip             = local.vpc_dns_ip
+  dns_servers            = var.dns_servers
+  domain_name            = var.domain_name
 }
 # DNS (optional)
 module "dns" {
@@ -108,12 +110,14 @@ module "dns" {
 
 # Private hosted zone for internal SFTPGo UI name -> private IP
 module "dns_private" {
-  count             = var.domain_name == "" ? 0 : 1
-  source            = "./modules/dns-private"
-  domain_name       = var.domain_name
-  vpc_id            = module.vpc.vpc_id
-  sftp_ui_subdomain = var.sftp_ui_subdomain
-  sftp_private_ip   = module.ec2.sftp_private_ip
+  count           = var.domain_name == "" ? 0 : 1
+  source          = "./modules/dns-private"
+  domain_name     = var.domain_name
+  vpc_id          = module.vpc.vpc_id
+  sftp_private_ip = module.ec2.sftp_private_ip
+  vpn_private_ip  = module.ec2.vpn_private_ip
+  sftp_subdomain  = var.sftp_subdomain
+  vpn_subdomain   = var.vpn_subdomain
 }
 
 # Monitoring
@@ -125,41 +129,4 @@ module "monitoring" {
   alert_email        = var.alert_email
   sftp_instance_id   = module.ec2.sftp_instance_id
   vpn_instance_id    = module.ec2.vpn_instance_id
-}
-
-# Optional ALB for SFTPGo UI with ACM
-module "sftp_ui_alb" {
-  count              = var.enable_sftp_ui_alb && var.acm_certificate_arn != "" ? 1 : 0
-  source             = "./modules/alb"
-  project_name       = var.project_name
-  environment        = var.environment
-  vpc_id             = module.vpc.vpc_id
-  public_subnet_ids  = module.vpc.public_subnet_ids
-  certificate_arn    = var.acm_certificate_arn
-  target_instance_id = module.ec2.sftp_instance_id
-  target_port        = 8080
-}
-
-# Allow ALB SG -> SFTP instance on 8080 when ALB is enabled
-resource "aws_security_group_rule" "alb_to_sftp_ui" {
-  count                    = var.enable_sftp_ui_alb && length(module.sftp_ui_alb) > 0 ? 1 : 0
-  type                     = "ingress"
-  from_port                = 8080
-  to_port                  = 8080
-  protocol                 = "tcp"
-  security_group_id        = module.security_groups.sftp_sg_id
-  source_security_group_id = module.sftp_ui_alb[0].alb_sg_id
-}
-
-# DNS record for SFTP UI if DNS and ALB are enabled
-resource "aws_route53_record" "sftp_ui" {
-  count   = var.domain_name != "" && var.enable_sftp_ui_alb && length(module.sftp_ui_alb) > 0 ? 1 : 0
-  zone_id = module.dns[0].zone_id
-  name    = "${var.sftp_ui_subdomain}.${var.domain_name}"
-  type    = "A"
-  alias {
-    name                   = module.sftp_ui_alb[0].lb_dns_name
-    zone_id                = module.sftp_ui_alb[0].lb_zone_id
-    evaluate_target_health = true
-  }
 }

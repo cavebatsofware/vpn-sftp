@@ -10,6 +10,17 @@ volumes:
     driver: local
 
 services:
+  coredns:
+    image: "coredns/coredns:arm64-1.12.3"
+    container_name: coredns
+    command: ["-conf", "/etc/coredns/Corefile"]
+    volumes:
+      - /opt/docker-app/config/coredns:/etc/coredns:ro
+    networks:
+      app-network:
+        ipv4_address: 172.20.0.53
+    restart: unless-stopped
+
   sftpgo:
     image: "drakkan/sftpgo:latest"
     container_name: sftpgo
@@ -56,6 +67,10 @@ services:
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
+    depends_on:
+      - coredns
+    dns:
+      - 172.20.0.53
     environment:
       - PUID=1000
       - PGID=1000
@@ -63,7 +78,7 @@ services:
       - SERVERURL=${vpn_servername}
       - SERVERPORT=${wireguard_port}
       - PEERS=${wireguard_peers}
-      - PEERDNS=${dns_servers}
+      - PEERDNS=172.20.0.53
       - ALLOWEDIPS=0.0.0.0/0
       - MTU=1400
       - POSTUP=sysctl -w net.ipv4.ip_forward=1; iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT; iptables -t nat -A POSTROUTING -j MASQUERADE
@@ -74,6 +89,8 @@ services:
       - "${wireguard_port}:${wireguard_port}/udp"
     sysctls:
       - net.ipv4.conf.all.src_valid_mark=1
+    networks:
+      - app-network
     restart: unless-stopped
 
   monitoring:

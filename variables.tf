@@ -69,11 +69,19 @@ variable "wireguard_peers" {
 
 # DNS servers to use for the Wireguard VPN configuration
 variable "dns_servers" {
-  description = "Comma-separated list of DNS servers to use"
+  description = "Space-separated list of DNS servers to use"
   type        = string
-  default     = "8.8.8.8,8.8.4.4"
+  default     = "tls://8.8.8.8 tls://8.8.4.4"
 }
 
+variable "dns_tls_servername" {
+  description = "TLS Server Name (SNI) for DNS over TLS upstream; leave empty to skip tls_servername directive"
+  type        = string
+  default     = "dns.google"
+}
+
+# Fits into a forwarding rule in CoreDNS like this: forward . 10.0.0.10:53 10.0.0.11:1053 [2003::1]:53
+# where this value is everything after "forward . "
 variable "aws_profile" {
   description = "AWS CLI profile to use when reading ~/.aws/credentials on the instance"
   type        = string
@@ -110,10 +118,6 @@ variable "enable_sftp_ui_alb" {
 variable "acm_certificate_arn" {
   type    = string
   default = ""
-}
-variable "sftp_ui_subdomain" {
-  type    = string
-  default = "sftp-ui"
 }
 
 # Private DNS (Route 53 private hosted zone) for internal-only UI name
