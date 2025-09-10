@@ -129,7 +129,7 @@ fi
 # Install mount-s3 (Mountpoint for Amazon S3) if missing
 if ! command -v mount-s3 >/dev/null 2>&1; then
   RPM_URL="https://s3.amazonaws.com/mountpoint-s3-release/latest/arm64/mount-s3.rpm"
-  SIG_URL="https://s3.amazonaws.com/mountpoint-s3-release/latest/arm64/mount-s3.rpm.sig"
+  SIG_URL="https://s3.amazonaws.com/mountpoint-s3-release/latest/arm64/mount-s3.rpm.asc"
   TMP_DIR="/tmp/mountpoint-s3"
   mkdir -p "$TMP_DIR"
   (
@@ -139,18 +139,18 @@ if ! command -v mount-s3 >/dev/null 2>&1; then
     if [ -s KEYS ]; then
       gpg --import KEYS || true
       EXPECTED_FPR="673FE4061506BB469A0EF857BE397A52B086DA5A"
-      ACTUAL_FPR=$(gpg --fingerprint mountpoint-s3@amazon.com 2>/dev/null | sed -n "s/ *Key fingerprint = //p" | tr -d " " | head -n1)
+      ACTUAL_FPR=$(gpg --fingerprint mountpoint-s3@amazon.com 2>/dev/null | grep -A1 '^pub' | tail -n1 | tr -d ' ' | tr -d '\n')
       if [ -n "$ACTUAL_FPR" ] && [ "$ACTUAL_FPR" != "$EXPECTED_FPR" ]; then
         echo "WARNING: mountpoint-s3 GPG fingerprint mismatch: $ACTUAL_FPR" >&2
       fi
     fi
     wget -q -O mount-s3.rpm "$RPM_URL"
-    wget -q -O mount-s3.rpm.sig "$SIG_URL"
-    if [ ! -s KEYS ] || [ ! -s mount-s3.rpm.sig ]; then
+    wget -q -O mount-s3.rpm.asc "$SIG_URL"
+    if [ ! -s KEYS ] || [ ! -s mount-s3.rpm.asc ]; then
       echo "ERROR: GPG KEYS or signature file missing; cannot verify mount-s3.rpm" >&2
       exit 2
     fi
-    if ! gpg --verify mount-s3.rpm.sig mount-s3.rpm >/dev/null 2>&1; then
+    if ! gpg --verify mount-s3.rpm.asc mount-s3.rpm >/dev/null 2>&1; then
       echo "ERROR: GPG signature verification failed for mount-s3.rpm; skipping install" >&2
       exit 3
     fi
