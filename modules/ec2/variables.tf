@@ -55,3 +55,14 @@ variable "aws_profile" {
   type        = string
   default     = "default"
 }
+
+variable "ecr_registry_url" {
+  description = "ECR registry URL for Docker authentication"
+  type        = string
+}
+
+variable "instance_type" {
+  description = "EC2 instance type"
+  type        = string
+  default     = "t4g.micro"
+}

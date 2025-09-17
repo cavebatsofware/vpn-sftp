@@ -11,7 +11,7 @@ volumes:
 
 services:
   coredns:
-    image: "coredns/coredns:arm64-1.12.3"
+    image: "coredns/coredns:arm64-1.12.4"
     container_name: coredns
     command: ["-conf", "/etc/coredns/Corefile"]
     volumes:
@@ -93,19 +93,20 @@ services:
       - app-network
     restart: unless-stopped
 
-  monitoring:
-    image: prom/node-exporter:latest
-    container_name: node-exporter
+  personal-site:
+    image: "${personal_site_image_url}"
+    container_name: personal-site
+    environment:
+      - PORT=3000
+      - RESUME_CODES=${resume_codes}
     ports:
-      - "9100:9100"
-    volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - /:/rootfs:ro
-    command:
-      - '--path.procfs=/host/proc'
-      - '--path.sysfs=/host/sys'
-      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+      - "3000:3000"
     networks:
       - app-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

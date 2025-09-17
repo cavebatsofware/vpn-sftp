@@ -110,11 +110,6 @@ variable "vpn_subdomain" {
   default = "vpn"
 }
 
-# Optional SFTPGo UI over HTTPS via ALB
-variable "enable_sftp_ui_alb" {
-  type    = bool
-  default = false
-}
 variable "acm_certificate_arn" {
   type    = string
   default = ""
@@ -124,4 +119,17 @@ variable "acm_certificate_arn" {
 # The module will create a private zone for `domain_name` and map
 # `<sftp_ui_subdomain>.<domain_name>` to the SFTP instance private IP.
 # It is created automatically when domain_name is set.
+
+# Personal site configuration
+variable "resume_codes" {
+  type        = string
+  default     = ""
+  description = "Comma-separated list of valid resume access codes"
+}
+
+variable "personal_site_subdomain" {
+  type        = string
+  default     = "resume"
+  description = "Subdomain for the personal site"
+}
 

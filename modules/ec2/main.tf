@@ -5,7 +5,7 @@ resource "aws_key_pair" "main" {
 
 resource "aws_instance" "stack_server" {
   ami                         = var.arm64_ami_id
-  instance_type               = "t4g.micro"
+  instance_type               = var.instance_type
   key_name                    = aws_key_pair.main.key_name
   subnet_id                   = var.public_subnet_id
   vpc_security_group_ids      = [var.sftp_security_group_id, var.vpn_security_group_id]
@@ -36,6 +36,7 @@ resource "aws_instance" "stack_server" {
     domain_name        = var.domain_name,
     route53_zone_id    = var.route53_zone_id,
     dns_tls_servername = var.dns_tls_servername,
+    ecr_registry_url   = var.ecr_registry_url,
   })
   tags = { Name = "${var.project_name}-${var.environment}-stack", Service = "sftp+vpn", Architecture = "arm64" }
 }

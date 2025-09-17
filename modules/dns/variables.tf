@@ -25,3 +25,15 @@ variable "ttl" {
   type    = number
   default = 900
 }
+variable "personal_site_subdomain" {
+  type    = string
+  default = "resume"
+}
+variable "personal_site_alb_dns_name" {
+  type    = string
+  default = ""
+}
+variable "personal_site_alb_zone_id" {
+  type    = string
+  default = ""
+}

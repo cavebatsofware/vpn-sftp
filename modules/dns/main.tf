@@ -36,6 +36,19 @@ resource "aws_route53_record" "vpn" {
   records = [var.vpn_ip]
 }
 
+resource "aws_route53_record" "personal_site" {
+  count   = 1
+  zone_id = local.zone_id
+  name    = "${var.personal_site_subdomain}.${var.domain_name}."
+  type    = "A"
+
+  alias {
+    name                   = var.personal_site_alb_dns_name
+    zone_id                = var.personal_site_alb_zone_id
+    evaluate_target_health = true
+  }
+}
+
 output "zone_id" {
   value = local.zone_id
 }

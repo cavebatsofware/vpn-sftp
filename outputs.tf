@@ -43,3 +43,19 @@ output "s3_role_arn" {
   value       = module.iam.ec2_role_arn
   description = "Role ARN used for S3 access"
 }
+
+# Personal Site ALB outputs (conditional)
+output "personal_site_alb_dns_name" {
+  value       = var.acm_certificate_arn != "" && var.domain_name != "" ? try(aws_lb.personal_site[0].dns_name, "") : ""
+  description = "DNS name of the personal site ALB"
+}
+
+output "personal_site_url" {
+  value       = var.acm_certificate_arn != "" && var.domain_name != "" ? "https://${var.personal_site_subdomain}.${var.domain_name}" : ""
+  description = "URL of the personal site"
+}
+
+output "personal_site_ecr_repository_url" {
+  value       = module.ecr.repository_url
+  description = "ECR repository URL for personal-site container"
+}
