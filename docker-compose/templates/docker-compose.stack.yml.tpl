@@ -93,12 +93,52 @@ services:
       - app-network
     restart: unless-stopped
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: personal-site-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${postgres_db}
+      - POSTGRES_USER=${postgres_user}
+      - POSTGRES_PASSWORD=${postgres_password}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF8 --locale=en_US.UTF-8
+    volumes:
+      - ${efs_mount_path}/postgres:/var/lib/postgresql/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${postgres_user} -d ${postgres_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   personal-site:
     image: "${personal_site_image_url}"
     container_name: personal-site
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
       - PORT=3000
-      - RESUME_CODES=${resume_codes}
+      - ACCESS_CODES=${access_codes}
+      - DATABASE_URL=postgresql://${postgres_user}:${postgres_password}@postgres:5432/${postgres_db}
+      - POSTGRES_DB=${postgres_db}
+      - POSTGRES_USER=${postgres_user}
+      - POSTGRES_PASSWORD=${postgres_password}
+      - POSTGRES_PORT=5432
+      - MIGRATE_DB=true # This will be handled by the entrypoint script
+      - RATE_LIMIT_PER_MINUTE=${rate_limit_per_minute}
+      - BLOCK_DURATION_MINUTES=${block_duration_minutes}
+      - ENABLE_ACCESS_LOGGING=${enable_access_logging}
+      - LOG_SUCCESSFUL_ATTEMPTS=${log_successful_attempts}
+      - ACCESS_LOG_RETENTION_DAYS=${access_log_retention_days}
+      - SITE_DOMAIN=${site_domain}
+      - SITE_URL=${site_url}
+      - AWS_SES_FROM_EMAIL=${aws_ses_from_email}
+      - S3_BUCKET_NAME=${personal_site_storage_bucket}
+      - AWS_REGION=${aws_region}
+      - AWS_DEFAULT_REGION=${aws_region}
     ports:
       - "3000:3000"
     networks:

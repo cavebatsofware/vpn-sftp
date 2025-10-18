@@ -1,14 +1,15 @@
 # vpn-sftp (WireGuard)
 
-Production-ready Terraform to deploy an SFTP service (SFTPGo) behind a WireGuard VPN on AWS with hardened networking, logging, and persistent storage.
+Terraform configuration for deploying SFTP (SFTPGo), personal site, and WireGuard VPN on AWS.
 
-Highlights
+## Features
 - Multi-environment (dev/staging/prod) via workspaces and per-env tfvars
-- SFTPGo with EFS-backed state and S3-backed data via Mountpoint for Amazon S3; access over VPN (HTTP/WEBDAV) or SSH/SFTP
-- WireGuard VPN on Amazon Linux 2023 ARM64 Gravitron (t4g.*), simple client export
-- Optional ALB + ACM for SFTPGo Web UI; Route 53 DNS wiring (wip, coming)
-- CloudWatch metrics/alerts; node exporter
-- Clean, idempotent bootstraps using Docker Compose in user-data
+- SFTPGo with EFS-backed state and S3-backed data via Mountpoint for Amazon S3
+- Personal site with PostgreSQL database, admin panel, and S3 storage
+- WireGuard VPN on Amazon Linux 2023 ARM64 (t4g.*)
+- ALB + ACM for HTTPS; Route 53 DNS integration
+- CloudWatch metrics/alerts
+- Docker Compose-based service orchestration
 
 ## Prerequisites
 - Terraform >= 1.6
@@ -35,23 +36,27 @@ Links
    - Use `environments.examples/*` as a reference
 2) Edit `environments/<env>/terraform.tfvars`
    - Required: `aws_region`, `project_name`, `environment`, VPC CIDRs, `allowed_ssh_cidrs`, `admin_access_cidrs`, `public_key`
-   - Optional DNS: `domain_name`, `route53_zone_id` or `create_hosted_zone` (this isn't implemented at time of writing)
-   - Optional ALB for SFTP UI: `enable_sftp_ui_alb=true`, `acm_certificate_arn`, `sftp_ui_subdomain` (coming soon)
-   - Optional s3fs credentials (see next section)
+   - Required for personal site: `postgres_password`, `personal_site_storage_bucket`, `aws_ses_from_email`
+   - DNS: `domain_name`, `route53_zone_id` or `create_hosted_zone`
+   - HTTPS: `acm_certificate_arn`, `personal_site_subdomain`
 3) Initialize Terraform
    - make init ENV=dev
 4) Plan and apply
    - make plan ENV=dev
    - make apply ENV=dev
 
-What gets created
-- VPC, subnets, route tables
-- Security groups (SSH, SFTP, UI, VPN)
-- S3 bucket + KMS key (SSE-KMS)
-- EFS file system (for SFTPGo state and WireGuard config)
-- IAM role/policies and instance profile
-- EC2: single host (Amazon Linux 2023 ARM64) running both SFTPGo and WireGuard via Docker Compose
-- Optional: ALB + Route53 for SFTPGo UI (WIP)
+## Infrastructure
+- VPC, subnets, route tables, security groups
+- S3 buckets (SFTP data, personal site storage) + KMS encryption
+- EFS file system (SFTPGo state, WireGuard config, PostgreSQL data)
+- IAM roles with policies for S3, SES, ECR access
+- EC2 instance (Amazon Linux 2023 ARM64) running:
+  - SFTPGo (SFTP/WebDAV server)
+  - WireGuard (VPN)
+  - PostgreSQL (personal site database)
+  - Personal site application
+- ALB + Route53 for personal site HTTPS access
+- CloudWatch logs and metrics
 
 ## S3 access via Mountpoint for Amazon S3
 Mountpoint mounts your S3 bucket at `/mnt/s3`, which is bind-mounted as `/data` into the SFTPGo container. New users default to local FS under `/data/[username]`.
@@ -87,20 +92,35 @@ Backend note: `make init` uses `environments/<env>/backend.tfvars` to configure 
 - `scripts/health-check.sh`
   - Basic checks; customize endpoints as needed.
 
-## SFTPGo and VPN specifics
-- SFTPGo
-  - Data provider: SQLite at `/var/lib/sftpgo/sftpgo.db` (on EFS)
-  - Defaults: new users on local filesystem under `/data` (s3fs mount)
-  - Admin password: `/opt/docker-app/secrets/sftpgo_admin_password` (seeded from SSM if present)
-  - UI and REST API listen on 8080 (restrict via SG or place behind ALB)
-- WireGuard
-  - UDP ${wireguard_port} (default 51820)
-  - Easy client generation via `scripts/wireguard-client.sh`
+## Service Configuration
 
-## DNS and HTTPS (optional)
+### Personal Site
+- PostgreSQL 16 database on EFS at `/mnt/efs/postgres`
+- Database migrations run automatically on container start when `MIGRATE_DB=true`
+- Required environment variables:
+  - `DATABASE_URL`: PostgreSQL connection string
+  - `SITE_DOMAIN`: Base domain for the site
+  - `SITE_URL`: Full URL for the site
+  - `AWS_SES_FROM_EMAIL`: Email address for sending verification emails
+  - `S3_BUCKET_NAME`: S3 bucket for file storage
+- Access via ALB at configured subdomain
+- Deploy updates: `./scripts/deploy-personal-site.sh <stack_ip>`
+
+### SFTPGo
+- Data provider: SQLite at `/var/lib/sftpgo/sftpgo.db` (on EFS)
+- User storage: local filesystem under `/data` (Mountpoint S3)
+- Admin password: `/opt/docker-app/secrets/sftpgo_admin_password` (from SSM)
+- UI and REST API on port 8080
+
+### WireGuard
+- UDP port (default: 51820)
+- Client generation: `./scripts/wireguard-client.sh <stack_ip>`
+
+## DNS and HTTPS
 - Set `domain_name` and either `route53_zone_id` or `create_hosted_zone = true`
-- Enable ALB with `enable_sftp_ui_alb = true` and set `acm_certificate_arn`
-- Terraform will publish records for SFTP UI and VPN based on subdomains
+- Set `acm_certificate_arn` for HTTPS
+- Configure `personal_site_subdomain` for site access
+- Route 53 records created automatically for configured services
 
 ## Security notes
 - Do not commit secrets. Use SSM/KMS.

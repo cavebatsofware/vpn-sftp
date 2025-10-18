@@ -23,6 +23,12 @@ ssh-add "$SSH_KEY"
 echo "Getting ECR registry URL from Terraform..."
 ECR_REGISTRY=$(terraform output -raw personal_site_ecr_repository_url | cut -d'/' -f1)
 
+# Get the directory where this script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+echo "Copying database initialization script to instance..."
+scp -o StrictHostKeyChecking=no "$SCRIPT_DIR/init-personal-site-db.sh" ec2-user@"$STACK_IP":/tmp/init-personal-site-db.sh
+
 echo "Deploying personal-site container to $STACK_IP..."
 
 ssh -o StrictHostKeyChecking=no ec2-user@"$STACK_IP" << EOF
@@ -40,11 +46,47 @@ aws ecr get-login-password --region us-east-2 | docker login --username AWS --pa
 echo "Pulling latest personal-site image..."
 docker compose pull personal-site
 
+echo "Ensuring postgres service is running..."
+docker compose up -d postgres
+
+echo "Waiting for postgres to be healthy..."
+for i in {1..30}; do
+    if docker compose exec -T postgres pg_isready -U personal_site_user -d personal_site > /dev/null 2>&1; then
+        echo "✅ PostgreSQL is ready"
+        break
+    fi
+    echo "Waiting for PostgreSQL... (attempt \$i/30)"
+    sleep 2
+done
+
+# Check if database needs initialization (check for uuid-ossp extension)
+echo "Checking if database needs initialization..."
+DB_INITIALIZED=\$(docker compose exec -T postgres psql -U personal_site_user -d personal_site -tAc "SELECT COUNT(*) FROM pg_extension WHERE extname='uuid-ossp';" 2>/dev/null || echo "0")
+
+if [ "\$DB_INITIALIZED" = "0" ]; then
+    echo "📦 Database not initialized. Running initialization script..."
+
+    # Copy init script into the postgres container
+    docker cp /tmp/init-personal-site-db.sh personal-site-db:/tmp/init-db.sh
+
+    # Run the initialization script inside postgres container
+    docker compose exec -T postgres bash -c "
+        export POSTGRES_USER=personal_site_user
+        export POSTGRES_DB=personal_site
+        chmod +x /tmp/init-db.sh
+        /tmp/init-db.sh
+    "
+
+    echo "✅ Database initialization complete"
+else
+    echo "✅ Database already initialized, skipping initialization"
+fi
+
 echo "Stopping and removing old personal-site container..."
 docker compose stop personal-site
 docker compose rm -f personal-site
 
-echo "Starting updated personal-site container..."
+echo "Starting updated personal-site container (migrations will run automatically)..."
 docker compose up -d personal-site
 
 # This usually takes a bit of time for the container to be fully healthy

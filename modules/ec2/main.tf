@@ -12,6 +12,15 @@ resource "aws_instance" "stack_server" {
   iam_instance_profile        = var.instance_profile_name
   ebs_optimized               = true
   user_data_replace_on_change = true
+
+  # Allow Docker containers to access EC2 metadata service
+  # Default hop limit is 1, Docker containers need 2 (container -> host -> metadata)
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "optional"
+    http_put_response_hop_limit = 2
+  }
+
   credit_specification {
     cpu_credits = "unlimited"
   }

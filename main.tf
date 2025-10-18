@@ -68,17 +68,30 @@ locals {
   vpc_dns_ip = cidrhost(var.vpc_cidr, 2)
 
   docker_compose_yml_stack = templatefile(local.docker_compose_template_stack, {
-    s3_bucket_name          = module.s3.bucket_name
-    aws_region              = var.aws_region
-    sftp_port               = var.sftp_port
-    wireguard_port          = var.wireguard_port
-    vpn_servername          = (var.domain_name != "" ? "${var.vpn_subdomain}.${var.domain_name}" : "${var.project_name}.${var.environment}")
-    s3_mount_path           = "/mnt/s3"
-    efs_mount_path          = "/mnt/efs"
-    wireguard_peers         = var.wireguard_peers == "" ? 0 : var.wireguard_peers
-    dns_servers             = var.dns_servers
-    resume_codes            = var.resume_codes
-    personal_site_image_url = "${module.ecr.repository_url}:latest"
+    s3_bucket_name               = module.s3.bucket_name
+    aws_region                   = var.aws_region
+    sftp_port                    = var.sftp_port
+    wireguard_port               = var.wireguard_port
+    vpn_servername               = (var.domain_name != "" ? "${var.vpn_subdomain}.${var.domain_name}" : "${var.project_name}.${var.environment}")
+    s3_mount_path                = "/mnt/s3"
+    efs_mount_path               = "/mnt/efs"
+    wireguard_peers              = var.wireguard_peers == "" ? 0 : var.wireguard_peers
+    dns_servers                  = var.dns_servers
+    access_codes                 = var.access_codes
+    personal_site_image_url      = "${module.ecr.repository_url}:latest"
+    postgres_db                  = var.postgres_db
+    postgres_user                = var.postgres_user
+    postgres_password            = var.postgres_password
+    migrate_db                   = var.migrate_db
+    rate_limit_per_minute        = var.rate_limit_per_minute
+    block_duration_minutes       = var.block_duration_minutes
+    enable_access_logging        = var.enable_access_logging
+    log_successful_attempts      = var.log_successful_attempts
+    access_log_retention_days    = var.access_log_retention_days
+    site_domain                  = var.domain_name
+    site_url                     = "https://${var.personal_site_subdomain}.${var.domain_name}"
+    aws_ses_from_email           = var.aws_ses_from_email
+    personal_site_storage_bucket = var.personal_site_storage_bucket
   })
 }
 

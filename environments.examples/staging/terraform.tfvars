@@ -21,8 +21,14 @@ create_hosted_zone = false
 
 vpn_subdomain  = "vpn"
 sftp_subdomain = "sftp"
+personal_site_subdomain = "resume"
 
-# Service ports and WireGuard peers 
+# Service ports and WireGuard peers
 sftp_port       = 2222
 wireguard_port  = 51820
 wireguard_peers = ""
+
+# Personal Site Configuration
+postgres_password            = "staging_password_change_me"
+aws_ses_from_email           = "noreply@example.com"
+personal_site_storage_bucket = "staging-site-storage-bucket"

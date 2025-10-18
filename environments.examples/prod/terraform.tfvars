@@ -24,8 +24,20 @@ create_hosted_zone = false
 # Hostname labels
 vpn_subdomain  = "vpn"
 sftp_subdomain = "sftp"
+personal_site_subdomain = "resume"
 
 # Service ports and WireGuard peers
 sftp_port       = 2222
 wireguard_port  = 51820
 wireguard_peers = ""
+
+# Personal Site Configuration
+# PostgreSQL database password (required, sensitive)
+postgres_password = "CHANGE_ME_SECURE_PASSWORD"
+
+# AWS SES and S3 configuration
+aws_ses_from_email           = "noreply@example.com"
+personal_site_storage_bucket = "your-site-storage-bucket"
+
+# SSL Certificate for HTTPS (optional)
+# acm_certificate_arn = "arn:aws:acm:us-east-2:123456789012:certificate/abcd-1234"

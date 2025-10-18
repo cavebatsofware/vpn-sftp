@@ -121,7 +121,7 @@ variable "acm_certificate_arn" {
 # It is created automatically when domain_name is set.
 
 # Personal site configuration
-variable "resume_codes" {
+variable "access_codes" {
   type        = string
   default     = ""
   description = "Comma-separated list of valid resume access codes"
@@ -131,5 +131,74 @@ variable "personal_site_subdomain" {
   type        = string
   default     = "resume"
   description = "Subdomain for the personal site"
+}
+
+# PostgreSQL Database configuration
+variable "postgres_db" {
+  type        = string
+  default     = "personal_site"
+  description = "PostgreSQL database name"
+}
+
+variable "postgres_user" {
+  type        = string
+  default     = "personal_site_user"
+  description = "PostgreSQL database user"
+}
+
+variable "postgres_password" {
+  type        = string
+  sensitive   = true
+  description = "PostgreSQL database password (sensitive)"
+}
+
+variable "migrate_db" {
+  type        = string
+  default     = "true"
+  description = "Enable database migrations on startup"
+}
+
+# Rate limiting and access logging
+variable "rate_limit_per_minute" {
+  type        = number
+  default     = 30
+  description = "Max requests per minute before blocking IP"
+}
+
+variable "block_duration_minutes" {
+  type        = number
+  default     = 15
+  description = "Duration to block IPs exceeding rate limit"
+}
+
+variable "enable_access_logging" {
+  type        = string
+  default     = "true"
+  description = "Enable/disable access logging to database"
+}
+
+variable "log_successful_attempts" {
+  type        = string
+  default     = "true"
+  description = "Log successful access attempts"
+}
+
+variable "access_log_retention_days" {
+  type        = number
+  default     = 30
+  description = "Days to retain access logs before cleanup"
+}
+
+# AWS SES configuration for email sending
+variable "aws_ses_from_email" {
+  type        = string
+  default     = ""
+  description = "AWS SES from email address for sending emails (e.g., noreply@domain.com)"
+}
+
+# S3 bucket for personal-site storage
+variable "personal_site_storage_bucket" {
+  type        = string
+  description = "S3 bucket name for personal-site storage"
 }
 
