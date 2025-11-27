@@ -1,10 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
-# EC2 user-data to provision a single host running both SFTPGo and WireGuard via Docker Compose.
+# EC2 user-data to provision a single host running SFTP, WireGuard, and personal-site via Docker Compose.
 # - Installs Docker and compose plugin
-# - Mounts EFS at ${efs_mount_path} and S3 bucket via Mountpoint for Amazon S3 (mount-s3) at /mnt/s3
-# - Creates SFTPGo admin password secret (from SSM if available, else random)
+# - Mounts EFS at ${efs_mount_path} for persistent storage
+# - Copies SFTP container build context
 # - Renders docker-compose.yml from provided template and starts the stack
 
 AWS_REGION=${aws_region}
@@ -12,7 +12,6 @@ ENVIRONMENT=${environment}
 PROJECT_NAME=${project_name}
 EFS_FS_ID=${efs_file_system_id}
 EFS_MOUNT=${efs_mount_path}
-S3_BUCKET=${s3_bucket_name}
 DOCKER_COMPOSE_YML=$(cat <<'YAML'
 ${docker_compose_yml}
 YAML
@@ -21,8 +20,6 @@ YAML
 export DNF_YUM=1
 dnf -y update || true
 dnf -y install docker || true
-dnf -y swap gnupg2-minimal gnupg2-full || true
-
 
 # Ensure any old/incorrect compose plugin path is not shadowing
 rm -f /usr/lib/docker/cli-plugins/docker-compose || true
@@ -46,7 +43,7 @@ done
 groupadd -f docker || true
 id "ec2-user" >/dev/null 2>&1 && usermod -aG docker "ec2-user" || true
 
-mkdir -p /opt/docker-app/{config,secrets,logs}
+mkdir -p /opt/docker-app/{config,secrets,logs,sftp}
 cd /opt/docker-app
 
 # Mount EFS for persistence
@@ -57,9 +54,9 @@ fi
 mount -a || true
 
 # Prepare EFS subdirs and permissions
-mkdir -p "$EFS_MOUNT/sftpgo" "$EFS_MOUNT/wireguard"
-chown -R 1000:1000 "$EFS_MOUNT/sftpgo" "$EFS_MOUNT/wireguard" || true
-chmod 750 "$EFS_MOUNT/sftpgo" "$EFS_MOUNT/wireguard" || true
+mkdir -p "$EFS_MOUNT/sftp" "$EFS_MOUNT/wireguard" "$EFS_MOUNT/postgres"
+chown -R 1000:1000 "$EFS_MOUNT/sftp" "$EFS_MOUNT/wireguard" || true
+chmod 750 "$EFS_MOUNT/sftp" "$EFS_MOUNT/wireguard" || true
 
 # Prepare CoreDNS configuration (Route53 private zone + optional DNS-over-TLS forwarders)
 mkdir -p /opt/docker-app/config/coredns
@@ -94,64 +91,80 @@ cat > /opt/docker-app/config/coredns/hosts <<EOF
 172.20.0.53 coredns
 EOF
 
-# Mount S3 bucket at /mnt/s3 using Mountpoint for Amazon S3 via /etc/fstab
-mkdir -p /mnt/s3
+# Copy SFTP container build context
+cat > /opt/docker-app/sftp/Dockerfile <<'DOCKERFILE'
+FROM alpine:3.22
 
-# Ensure FUSE allows 'allow_other' (create if missing)
-if [ -f /etc/fuse.conf ]; then
-  sed -i "s/^#\?user_allow_other/user_allow_other/" /etc/fuse.conf || true
-else
-  echo user_allow_other > /etc/fuse.conf
-  chmod 644 /etc/fuse.conf || true
+RUN apk add --no-cache openssh-server && \
+    mkdir -p /var/run/sshd /data && \
+    ssh-keygen -A
+
+COPY sshd_config /etc/ssh/sshd_config
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+EXPOSE 22
+ENTRYPOINT ["/entrypoint.sh"]
+DOCKERFILE
+
+cat > /opt/docker-app/sftp/sshd_config <<'SSHDCONFIG'
+Port 22
+AddressFamily any
+ListenAddress 0.0.0.0
+
+# Security settings
+PermitRootLogin no
+PasswordAuthentication no
+PermitEmptyPasswords no
+ChallengeResponseAuthentication no
+KbdInteractiveAuthentication no
+UsePAM no
+
+# Public key authentication
+PubkeyAuthentication yes
+AuthorizedKeysFile /etc/ssh/authorized_keys/%u
+
+# SFTP subsystem
+Subsystem sftp internal-sftp
+
+# Restrict sftp-sync-user to SFTP only
+Match User sftp-sync-user
+    ChrootDirectory /data
+    ForceCommand internal-sftp
+    AllowTcpForwarding no
+    X11Forwarding no
+    PermitTunnel no
+    AllowAgentForwarding no
+SSHDCONFIG
+
+cat > /opt/docker-app/sftp/entrypoint.sh <<'ENTRYPOINT'
+#!/bin/sh
+set -e
+
+# Create user if not exists
+if ! id sftp-sync-user >/dev/null 2>&1; then
+    adduser -D -u 1000 -h /home/sftp-sync-user -s /sbin/nologin sftp-sync-user
 fi
 
-# Install mount-s3 (Mountpoint for Amazon S3) if missing
-if ! command -v mount-s3 >/dev/null 2>&1; then
-  RPM_URL="https://s3.amazonaws.com/mountpoint-s3-release/latest/arm64/mount-s3.rpm"
-  SIG_URL="https://s3.amazonaws.com/mountpoint-s3-release/latest/arm64/mount-s3.rpm.asc"
-  TMP_DIR="/tmp/mountpoint-s3"
-  mkdir -p "$TMP_DIR"
-  (
-    set -e
-    cd "$TMP_DIR"
-    wget -q -O KEYS https://s3.amazonaws.com/mountpoint-s3-release/public_keys/KEYS || true
-    if [ -s KEYS ]; then
-      gpg --import KEYS || true
-      EXPECTED_FPR="673FE4061506BB469A0EF857BE397A52B086DA5A"
-      ACTUAL_FPR=$(gpg --fingerprint mountpoint-s3@amazon.com 2>/dev/null | grep -A1 '^pub' | tail -n1 | tr -d ' ' | tr -d '\n')
-      if [ -n "$ACTUAL_FPR" ] && [ "$ACTUAL_FPR" != "$EXPECTED_FPR" ]; then
-        echo "WARNING: mountpoint-s3 GPG fingerprint mismatch: $ACTUAL_FPR" >&2
-      fi
-    fi
-    wget -q -O mount-s3.rpm "$RPM_URL"
-    wget -q -O mount-s3.rpm.asc "$SIG_URL"
-    if [ ! -s KEYS ] || [ ! -s mount-s3.rpm.asc ]; then
-      echo "ERROR: GPG KEYS or signature file missing; cannot verify mount-s3.rpm" >&2
-      exit 2
-    fi
-    if ! gpg --verify mount-s3.rpm.asc mount-s3.rpm >/dev/null 2>&1; then
-      echo "ERROR: GPG signature verification failed for mount-s3.rpm; skipping install" >&2
-      exit 3
-    fi
-    # Install the RPM (dnf handles dependencies like fuse3-lib, if any)
-    dnf -y install ./mount-s3.rpm || rpm -Uvh --force ./mount-s3.rpm || true
-  ) || echo "WARNING: Failed to install mount-s3; S3 mount will be skipped" >&2
-fi
+# Set up authorized keys directory and file
+mkdir -p /etc/ssh/authorized_keys
+echo "$SFTP_PUBLIC_KEY" > /etc/ssh/authorized_keys/sftp-sync-user
+chmod 644 /etc/ssh/authorized_keys/sftp-sync-user
 
-# Configure fstab entry and mount if mount-s3 is available
-if command -v mount-s3 >/dev/null 2>&1; then
-  if ! grep -qE "^s3://\s*$${S3_BUCKET}\b" /etc/fstab; then
-    echo "s3://$${S3_BUCKET} /mnt/s3 mount-s3 _netdev,nosuid,nodev,nofail,rw,allow-other,uid=1000,gid=1000,dir-mode=0750,file-mode=0640 0 0" >> /etc/fstab
-  fi
-  mount -a || true
-else
-  echo "WARNING: mount-s3 not installed; skipping S3 mount" >&2
-fi
+# Chroot requires root ownership of /data, user writes to subdirectory
+chown root:root /data
+chmod 755 /data
 
-# Tighten secret permissions only if files exist
-if compgen -G "/opt/docker-app/secrets/*" > /dev/null; then
-  chmod 600 /opt/docker-app/secrets/* || true
-fi
+# Create upload directory owned by user
+mkdir -p /data/files
+chown sftp-sync-user:sftp-sync-user /data/files
+chmod 750 /data/files
+
+# Start sshd in foreground
+exec /usr/sbin/sshd -D -e
+ENTRYPOINT
+
+chmod +x /opt/docker-app/sftp/entrypoint.sh
 
 # Enable IPv4 forwarding on host (defense in depth for WireGuard NAT)
 sysctl -w net.ipv4.ip_forward=1 || true
@@ -189,7 +202,7 @@ fi
 
 # Start the stack (only if compose plugin is available)
 if docker compose version >/dev/null 2>&1; then
-  docker compose up -d
+  docker compose up -d --build
 else
   echo "WARNING: docker compose plugin not available; skipping stack start" >&2
 fi

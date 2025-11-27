@@ -7,42 +7,6 @@ resource "aws_iam_role" "ec2_role" {
   tags = { Name = "${var.project_name}-${var.environment}-ec2-role" }
 }
 
-resource "aws_iam_role_policy" "s3_access" {
-  name = "s3-access-policy"
-  role = aws_iam_role.ec2_role.id
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Effect = "Allow",
-        Action = [
-          "s3:GetBucketLocation",
-          "s3:ListBucket",
-          "s3:ListBucketMultipartUploads"
-        ],
-        Resource = var.s3_bucket_arn
-      },
-      {
-        Effect = "Allow",
-        Action = [
-          "s3:GetObject",
-          "s3:GetObjectAcl",
-          "s3:PutObject",
-          "s3:DeleteObject",
-          "s3:CreateMultipartUpload",
-          "s3:UploadPart",
-          "s3:CompleteMultipartUpload",
-          "s3:AbortMultipartUpload",
-          "s3:CopyObject",
-          "s3:PutObjectAcl"
-        ],
-        Resource = "${var.s3_bucket_arn}/*"
-      },
-      { Effect = "Allow", Action = ["kms:Encrypt", "kms:Decrypt", "kms:ReEncrypt*", "kms:GenerateDataKey*", "kms:DescribeKey"], Resource = var.kms_key_arn }
-    ]
-  })
-}
-
 resource "aws_iam_role_policy" "ssm_get_parameters" {
   name = "ssm-get-parameters"
   role = aws_iam_role.ec2_role.id
@@ -81,8 +45,8 @@ resource "aws_iam_role_policy" "route53_read" {
     Version = "2012-10-17",
     Statement = [
       {
-        Effect   = "Allow",
-        Action   = [
+        Effect = "Allow",
+        Action = [
           "route53:ListHostedZones",
           "route53:ListHostedZonesByName",
           "route53:ListResourceRecordSets",

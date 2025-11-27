@@ -5,13 +5,9 @@ networks:
       config:
         - subnet: 172.20.0.0/24
 
-volumes:
-  sftpgo-data:
-    driver: local
-
 services:
   coredns:
-    image: "coredns/coredns:arm64-1.12.4"
+    image: "coredns/coredns:1.13.1"
     container_name: coredns
     command: ["-conf", "/etc/coredns/Corefile"]
     volumes:
@@ -21,48 +17,33 @@ services:
         ipv4_address: 172.20.0.53
     restart: unless-stopped
 
-  sftpgo:
-    image: "drakkan/sftpgo:latest"
-    container_name: sftpgo
-    user: "1000:1000"
+  sftp:
+    build:
+      context: /opt/docker-app/sftp
+      dockerfile: Dockerfile
+    container_name: sftp
+    depends_on:
+      - coredns
+    dns:
+      - 172.20.0.53
     ports:
-      - "${sftp_port}:2022"   # SFTP
-      - "8080:8080"           # Web admin/UI
-      - "8081:8081"           # WebDAV (optional)
+      - "${sftp_port}:22"
     environment:
-      - SFTPGO_DEFAULT_ADMIN_USERNAME=admin
-      - SFTPGO_DEFAULT_ADMIN_PASSWORD_FILE=/run/secrets/sftpgo_admin_password
-      - SFTPGO_DATA_PROVIDER__DRIVER=sqlite
-      - SFTPGO_DATA_PROVIDER__NAME=/var/lib/sftpgo/sftpgo.db
-      - SFTPGO_LOG__LEVEL=info
-      # Explicitly enable REST API and Web Admin and set bindings
-      - SFTPGO_HTTPD__ENABLE_REST_API=true
-      - SFTPGO_HTTPD__ENABLE_WEB_ADMIN=true
-      - SFTPGO_HTTPD__BINDINGS__0__ADDRESS=0.0.0.0
-      - SFTPGO_HTTPD__BINDINGS__0__PORT=8080
-      # Expose WebDAV on 8081
-      - SFTPGO_WEBDAVD__BINDINGS__0__ADDRESS=0.0.0.0
-      - SFTPGO_WEBDAVD__BINDINGS__0__PORT=8081
-      - AWS_DEFAULT_REGION=${aws_region}
-      # Default users to local storage under /data (s3fs bind mount)
-      - SFTPGO_DEFAULTS__USER__FS_PROVIDER=0
-      - SFTPGO_DEFAULTS__USER__HOME_DIR=/data
+      - SFTP_PUBLIC_KEY=${public_key}
     volumes:
-      - ${efs_mount_path}/sftpgo:/var/lib/sftpgo
-      - ${s3_mount_path}:/data
-      - /opt/docker-app/secrets/sftpgo_admin_password:/run/secrets/sftpgo_admin_password:ro
+      - ${efs_mount_path}/sftp:/data
     networks:
       - app-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 2022"]
+      test: ["CMD-SHELL", "nc -z localhost 22"]
       interval: 60s
       timeout: 10s
       retries: 5
-      start_period: 30s
+      start_period: 10s
 
   wireguard:
-    image: lscr.io/linuxserver/wireguard:latest
+    image: lscr.io/linuxserver/wireguard:1.0.20250521-r0-ls91
     container_name: wireguard
     cap_add:
       - NET_ADMIN
@@ -94,8 +75,12 @@ services:
     restart: unless-stopped
 
   postgres:
-    image: postgres:16-alpine
+    image: postgres:17.2-alpine
     container_name: personal-site-db
+    depends_on:
+      - coredns
+    dns:
+      - 172.20.0.53
     restart: unless-stopped
     environment:
       - POSTGRES_DB=${postgres_db}
@@ -106,19 +91,25 @@ services:
       - ${efs_mount_path}/postgres:/var/lib/postgresql/data
     networks:
       - app-network
+    ports:
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${postgres_user} -d ${postgres_db}"]
       interval: 10s
-      timeout: 5s
+      timeout: 15s
       retries: 5
-      start_period: 10s
+      start_period: 15s
 
   personal-site:
     image: "${personal_site_image_url}"
     container_name: personal-site
     depends_on:
+      coredns:
+        condition: service_started
       postgres:
         condition: service_healthy
+    dns:
+      - 172.20.0.53
     environment:
       - PORT=3000
       - ACCESS_CODES=${access_codes}
@@ -127,7 +118,7 @@ services:
       - POSTGRES_USER=${postgres_user}
       - POSTGRES_PASSWORD=${postgres_password}
       - POSTGRES_PORT=5432
-      - MIGRATE_DB=true # This will be handled by the entrypoint script
+      - MIGRATE_DB=true
       - RATE_LIMIT_PER_MINUTE=${rate_limit_per_minute}
       - BLOCK_DURATION_MINUTES=${block_duration_minutes}
       - ENABLE_ACCESS_LOGGING=${enable_access_logging}
@@ -139,6 +130,8 @@ services:
       - S3_BUCKET_NAME=${personal_site_storage_bucket}
       - AWS_REGION=${aws_region}
       - AWS_DEFAULT_REGION=${aws_region}
+    volumes:
+      - ${efs_mount_path}/wireguard:/wireguard-config
     ports:
       - "3000:3000"
     networks:
@@ -147,6 +140,6 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"]
       interval: 30s
-      timeout: 10s
-      retries: 3
+      timeout: 20s
+      retries: 5
       start_period: 30s

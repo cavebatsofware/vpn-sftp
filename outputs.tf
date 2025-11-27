@@ -19,11 +19,6 @@ output "vpn_private_ip" {
   description = "Private IP of VPN instance"
 }
 
-output "s3_bucket_name" {
-  value       = module.s3.bucket_name
-  description = "Name of S3 bucket used for SFTP backend"
-}
-
 output "sftp_effective_ip" {
   value       = try(module.ec2.sftp_effective_ip, module.ec2.sftp_public_ip)
   description = "Effective public IP (Elastic IP if allocated) for SFTP"
@@ -39,9 +34,9 @@ output "wireguard_port" {
   description = "WireGuard UDP port"
 }
 
-output "s3_role_arn" {
+output "ec2_role_arn" {
   value       = module.iam.ec2_role_arn
-  description = "Role ARN used for S3 access"
+  description = "Role ARN used by EC2 instance"
 }
 
 # Personal Site ALB outputs (conditional)

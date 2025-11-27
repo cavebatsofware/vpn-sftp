@@ -161,7 +161,7 @@ variable "migrate_db" {
 # Rate limiting and access logging
 variable "rate_limit_per_minute" {
   type        = number
-  default     = 30
+  default     = 50
   description = "Max requests per minute before blocking IP"
 }
 
@@ -201,4 +201,3 @@ variable "personal_site_storage_bucket" {
   type        = string
   description = "S3 bucket name for personal-site storage"
 }
-

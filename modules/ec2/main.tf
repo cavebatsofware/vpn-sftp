@@ -15,9 +15,10 @@ resource "aws_instance" "stack_server" {
 
   # Allow Docker containers to access EC2 metadata service
   # Default hop limit is 1, Docker containers need 2 (container -> host -> metadata)
+  # IMDSv2 required for security best practices
   metadata_options {
     http_endpoint               = "enabled"
-    http_tokens                 = "optional"
+    http_tokens                 = "required"
     http_put_response_hop_limit = 2
   }
 
@@ -32,7 +33,6 @@ resource "aws_instance" "stack_server" {
   }
   # Need to add value for tls_servername
   user_data = templatefile("${path.module}/user_data/stack_setup.sh", {
-    s3_bucket_name     = var.s3_bucket_name,
     aws_region         = var.aws_region,
     environment        = var.environment,
     project_name       = var.project_name,

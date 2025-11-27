@@ -1,0 +1,27 @@
+Port 22
+AddressFamily any
+ListenAddress 0.0.0.0
+
+# Security settings
+PermitRootLogin no
+PasswordAuthentication no
+PermitEmptyPasswords no
+ChallengeResponseAuthentication no
+KbdInteractiveAuthentication no
+UsePAM no
+
+# Public key authentication
+PubkeyAuthentication yes
+AuthorizedKeysFile /etc/ssh/authorized_keys/%u
+
+# SFTP subsystem
+Subsystem sftp internal-sftp
+
+# Restrict sftp-sync-user to SFTP only
+Match User sftp-sync-user
+    ChrootDirectory /data
+    ForceCommand internal-sftp
+    AllowTcpForwarding no
+    X11Forwarding no
+    PermitTunnel no
+    AllowAgentForwarding no

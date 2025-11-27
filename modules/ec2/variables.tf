@@ -6,7 +6,6 @@ variable "sftp_security_group_id" { type = string }
 variable "vpn_security_group_id" { type = string }
 variable "instance_profile_name" { type = string }
 variable "arm64_ami_id" { type = string }
-variable "s3_bucket_name" { type = string }
 variable "public_key" { type = string }
 variable "docker_compose_yml" { type = string }
 variable "allocate_elastic_ip" {

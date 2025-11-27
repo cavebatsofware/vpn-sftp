@@ -24,23 +24,25 @@ module "security_groups" {
   wireguard_port     = var.wireguard_port
 }
 
-# IAM
-module "iam" {
-  source        = "./modules/iam"
-  project_name  = var.project_name
-  environment   = var.environment
-  s3_bucket_arn = module.s3.bucket_arn
-  kms_key_arn   = module.s3.kms_key_arn
-  # Provide a Parameter Store KMS key ARN if you encrypt SSM parameters
-  parameter_store_kms_key_arn = null
-  ecr_repository_arn          = module.ecr.repository_arn
+# KMS key for EFS encryption
+resource "aws_kms_key" "efs_encryption" {
+  description             = "KMS key for EFS encryption"
+  deletion_window_in_days = 7
+  enable_key_rotation     = true
 }
 
-# S3 backend
-module "s3" {
-  source       = "./modules/s3"
-  project_name = var.project_name
-  environment  = var.environment
+resource "aws_kms_alias" "efs_encryption" {
+  name          = "alias/${var.project_name}-${var.environment}-efs"
+  target_key_id = aws_kms_key.efs_encryption.key_id
+}
+
+# IAM
+module "iam" {
+  source                      = "./modules/iam"
+  project_name                = var.project_name
+  environment                 = var.environment
+  parameter_store_kms_key_arn = null
+  ecr_repository_arn          = module.ecr.repository_arn
 }
 
 # ECR for personal-site container
@@ -50,7 +52,7 @@ module "ecr" {
   environment  = var.environment
 }
 
-# EFS for persistent state (SFTPGo DB, VPN state)
+# EFS for persistent state (SFTP data, VPN state, PostgreSQL)
 module "efs" {
   source        = "./modules/efs"
   project_name  = var.project_name
@@ -59,7 +61,7 @@ module "efs" {
   vpc_id        = module.vpc.vpc_id
   subnet_ids    = module.vpc.public_subnet_ids
   client_sg_ids = [module.security_groups.sftp_sg_id, module.security_groups.vpn_sg_id]
-  kms_key_arn   = module.s3.kms_key_arn
+  kms_key_arn   = aws_kms_key.efs_encryption.arn
 }
 
 locals {
@@ -68,12 +70,10 @@ locals {
   vpc_dns_ip = cidrhost(var.vpc_cidr, 2)
 
   docker_compose_yml_stack = templatefile(local.docker_compose_template_stack, {
-    s3_bucket_name               = module.s3.bucket_name
     aws_region                   = var.aws_region
     sftp_port                    = var.sftp_port
     wireguard_port               = var.wireguard_port
     vpn_servername               = (var.domain_name != "" ? "${var.vpn_subdomain}.${var.domain_name}" : "${var.project_name}.${var.environment}")
-    s3_mount_path                = "/mnt/s3"
     efs_mount_path               = "/mnt/efs"
     wireguard_peers              = var.wireguard_peers == "" ? 0 : var.wireguard_peers
     dns_servers                  = var.dns_servers
@@ -92,6 +92,7 @@ locals {
     site_url                     = "https://${var.personal_site_subdomain}.${var.domain_name}"
     aws_ses_from_email           = var.aws_ses_from_email
     personal_site_storage_bucket = var.personal_site_storage_bucket
+    public_key                   = var.public_key
   })
 }
 
@@ -106,7 +107,6 @@ module "ec2" {
   vpn_security_group_id  = module.security_groups.vpn_sg_id
   instance_profile_name  = module.iam.instance_profile_name
   arm64_ami_id           = var.arm64_ami_id_override != "" ? var.arm64_ami_id_override : data.aws_ami.al2023_arm64.id
-  s3_bucket_name         = module.s3.bucket_name
   public_key             = var.public_key
   docker_compose_yml     = local.docker_compose_yml_stack
   wireguard_port         = var.wireguard_port
@@ -122,6 +122,7 @@ module "ec2" {
   instance_type          = var.instance_type
   ecr_registry_url       = split("/", module.ecr.repository_url)[0]
 }
+
 # DNS (optional)
 module "dns" {
   count                      = var.domain_name == "" ? 0 : 1
@@ -138,7 +139,7 @@ module "dns" {
   personal_site_alb_zone_id  = var.acm_certificate_arn != "" ? try(aws_lb.personal_site[0].zone_id, "") : ""
 }
 
-# Private hosted zone for internal SFTPGo UI name -> private IP
+# Private hosted zone for internal name -> private IP
 module "dns_private" {
   count           = var.domain_name == "" ? 0 : 1
   source          = "./modules/dns-private"
