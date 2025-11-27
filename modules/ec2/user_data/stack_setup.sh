@@ -93,7 +93,7 @@ EOF
 
 # Copy SFTP container build context
 cat > /opt/docker-app/sftp/Dockerfile <<'DOCKERFILE'
-FROM alpine:3.22
+FROM alpine:3.22.2
 
 RUN apk add --no-cache openssh-server && \
     mkdir -p /var/run/sshd /data && \
