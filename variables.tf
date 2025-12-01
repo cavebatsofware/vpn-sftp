@@ -152,6 +152,12 @@ variable "postgres_password" {
   description = "PostgreSQL database password (sensitive)"
 }
 
+variable "totp_encryption_key" {
+  type        = string
+  sensitive   = true
+  description = "64-character hex string (32 bytes) for TOTP secret encryption"
+}
+
 variable "migrate_db" {
   type        = string
   default     = "true"

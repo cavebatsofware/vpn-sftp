@@ -35,6 +35,10 @@ wireguard_peers = ""
 # PostgreSQL database password (required, sensitive)
 postgres_password = "CHANGE_ME_SECURE_PASSWORD"
 
+# TOTP encryption key - 64-character hex string (32 bytes)
+# Generate with: openssl rand -hex 32
+totp_encryption_key = "CHANGE_ME_64_CHAR_HEX_STRING_USE_OPENSSL_RAND_HEX_32"
+
 # AWS SES and S3 configuration
 aws_ses_from_email           = "noreply@example.com"
 personal_site_storage_bucket = "your-site-storage-bucket"

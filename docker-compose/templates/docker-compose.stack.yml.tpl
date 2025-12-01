@@ -130,6 +130,7 @@ services:
       - S3_BUCKET_NAME=${personal_site_storage_bucket}
       - AWS_REGION=${aws_region}
       - AWS_DEFAULT_REGION=${aws_region}
+      - TOTP_ENCRYPTION_KEY=${totp_encryption_key}
     volumes:
       - ${efs_mount_path}/wireguard:/wireguard-config
     ports:

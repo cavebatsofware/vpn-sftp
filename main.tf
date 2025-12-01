@@ -93,6 +93,7 @@ locals {
     aws_ses_from_email           = var.aws_ses_from_email
     personal_site_storage_bucket = var.personal_site_storage_bucket
     public_key                   = var.public_key
+    totp_encryption_key          = var.totp_encryption_key
   })
 }
 

@@ -116,9 +116,7 @@ ListenAddress 0.0.0.0
 PermitRootLogin no
 PasswordAuthentication no
 PermitEmptyPasswords no
-ChallengeResponseAuthentication no
 KbdInteractiveAuthentication no
-UsePAM no
 
 # Public key authentication
 PubkeyAuthentication yes
@@ -141,9 +139,11 @@ cat > /opt/docker-app/sftp/entrypoint.sh <<'ENTRYPOINT'
 #!/bin/sh
 set -e
 
-# Create user if not exists
+# Create user if not exists (with disabled password to satisfy sshd account check)
 if ! id sftp-sync-user >/dev/null 2>&1; then
     adduser -D -u 1000 -h /home/sftp-sync-user -s /sbin/nologin sftp-sync-user
+    # Set unusable password to unlock account for pubkey auth (password login is disabled)
+    echo 'sftp-sync-user:*' | chpasswd -e
 fi
 
 # Set up authorized keys directory and file
